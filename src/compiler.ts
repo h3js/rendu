@@ -41,6 +41,32 @@ export function compileTemplate<O extends CompileTemplateOptions>(
   template: string,
   opts: O = {} as O,
 ): CompiledTemplate<O extends { stream: false } ? string : ReadableStream> {
+  const body = compileTemplateToString(template, opts, false);
+  const sourcemaps = opts.filename ? `\n//# sourceURL=${opts.filename}` : "";
+  try {
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+    const fn = new AsyncFunction("data", body + sourcemaps);
+    return fn as CompiledTemplate<any>;
+  } catch (error) {
+    throw new SyntaxError(
+      `Template syntax error: ${(error as Error).message}`,
+      {
+        // cause: inner,
+      },
+    );
+  }
+}
+
+/**
+ * Compile a template string into a render function code string.
+ *
+ * **Note:** This function is for advanced use cases where you need the generated code as a string.
+ */
+export function compileTemplateToString(
+  template: string,
+  opts: CompileTemplateOptions,
+  asyncWrapper?: boolean,
+): string {
   const parts: string[] = [];
   const tokens = tokenize(template);
   for (const token of tokens) {
@@ -66,23 +92,11 @@ export function compileTemplate<O extends CompileTemplateOptions>(
       // No default
     }
   }
-
   const inner = /*js*/ `with(data){${parts.join(opts.preserveLines ? ";" : "\n")}}`;
   const body =
     opts.stream === false ? runtimeText(inner) : runtimeStream(inner);
-  const sourcemaps = opts.filename ? `\n//# sourceURL=${opts.filename}` : "";
-  try {
-    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-    const fn = new AsyncFunction("data", body + sourcemaps);
-    return fn as CompiledTemplate<any>;
-  } catch (error) {
-    throw new SyntaxError(
-      `Template syntax error: ${(error as Error).message}`,
-      {
-        // cause: inner,
-      },
-    );
-  }
+
+  return asyncWrapper === false ? body : `(async (data) => {${body}})`;
 }
 
 // --- Tokenizer ---

@@ -42,7 +42,10 @@ const template = `
 
 const render = compileTemplate(template, { stream: false });
 
-const html = await render({ title: "My List", items: ["Item 1", "Item 2", "Item 3"] });
+const html = await render({
+  title: "My List",
+  items: ["Item 1", "Item 2", "Item 3"],
+});
 console.log(html);
 // Output:
 // <h1>My List</h1>
@@ -52,6 +55,12 @@ console.log(html);
 //   <li>Item 3</li>
 // </ul>
 ```
+
+### `compileTemplateToString(template, opts, asyncWrapper?)`
+
+Compile a template string into a render function code string.
+
+**Note:** This function is for advanced use cases where you need the generated code as a string.
 
 ### `renderToResponse(htmlTemplate, opts)`
 
