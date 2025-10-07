@@ -1,0 +1,11 @@
+{
+  "name": "rendu-playground",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "rendu",
+    "start": "rendu --prod"
+  },
+  "dependencies": {
+    "rendu": "latest"
+  }
+}

@@ -1,0 +1,108 @@
+<script server>
+  const start = performance.now();
+  $RESPONSE.headers.set('x-Powered-By', 'rendu');
+  $GLOBALS.todos = $GLOBALS.todos || [];
+  if ($METHOD === 'POST') {
+    const formData = await $REQUEST.formData();
+    const action = formData.get('_action');
+    if (action === 'create') {
+      const text = formData.get('text')?.toString().trim();
+      if (text) {
+        $GLOBALS.todos.push({ id: crypto.randomUUID(), text: text, done: false });
+      }
+    } else if (action === 'toggle') {
+      const id = formData.get('id')?.toString().trim();
+      const done = formData.get('done') === '1';
+      const todo = $GLOBALS.todos.find((t) => t.id === id);
+      if (todo) {
+        todo.done = !todo.done;
+      }
+    } else if (action === 'delete') {
+      const id = formData.get('id')?.toString().trim();
+      $GLOBALS.todos = $GLOBALS.todos.filter((t) => t.id !== id);
+    }
+
+    return Response.redirect($URL.origin + $URL.pathname, 303);
+  }
+</script>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Todos</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body
+    class="bg-light d-flex justify-content-center align-items-center vh-100"
+  >
+    <div class="card shadow p-4" style="width: 24rem">
+      <h1 class="h4 mb-3 text-center">Todos</h1>
+
+      <!-- Add new todo -->
+      <form method="POST" action="#" class="mb-3">
+        <input type="hidden" name="_action" value="create" />
+        <div class="input-group">
+          <input
+            type="text"
+            name="text"
+            class="form-control"
+            placeholder="New task…"
+            required
+            maxlength="200"
+            autofocus
+          />
+          <button class="btn btn-primary" type="submit">Add</button>
+        </div>
+      </form>
+
+      <!-- List -->
+      <ul class="list-group mb-3">
+        <? if ($GLOBALS.todos.length === 0) { ?>
+        <li class="list-group-item text-muted text-center">No tasks yet.</li>
+        <? } ?> <? for (const t of $GLOBALS.todos) { ?>
+        <li
+          class="list-group-item d-flex align-items-center justify-content-between"
+        >
+          <div class="me-2 flex-grow-1">
+            <span
+              class="<?= t.done ? 'text-decoration-line-through text-muted' : '' ?>"
+            >
+              <?= htmlspecialchars(t.text) ?>
+            </span>
+          </div>
+          <div class="d-flex gap-1">
+            <!-- Mark done / undo -->
+            <form method="POST" action="#">
+              <input type="hidden" name="_action" value="toggle" />
+              <input type="hidden" name="id" value="<?= t.id ?>" />
+              <button
+                class="btn btn-sm <?= t.done ? 'btn-outline-secondary' : 'btn-outline-success' ?>"
+                type="submit"
+              >
+                <?= t.done ? 'Undo' : 'Done' ?>
+              </button>
+            </form>
+
+            <!-- Delete -->
+            <form method="POST" action="#">
+              <input type="hidden" name="_action" value="delete" />
+              <input type="hidden" name="id" value="<?= t.id ?>" />
+              <button
+                class="btn btn-sm btn-outline-danger"
+                type="submit"
+                aria-label="Delete"
+              >
+                ✕
+              </button>
+            </form>
+          </div>
+        </li>
+        <? } ?>
+      </ul>
+    </div>
+  </body>
+</html>
