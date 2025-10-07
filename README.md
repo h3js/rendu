@@ -42,10 +42,7 @@ const template = `
 
 const render = compileTemplate(template, { stream: false });
 
-const html = await render({
-  title: "My List",
-  items: ["Item 1", "Item 2", "Item 3"],
-});
+const html = await render({ title: "My List", items: ["Item 1", "Item 2", "Item 3"] });
 console.log(html);
 // Output:
 // <h1>My List</h1>
