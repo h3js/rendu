@@ -7,8 +7,8 @@ Rendu is a lightweight toolkit for mixing HTML and JavaScript with a focus on si
 > [!WARNING]
 > This is an experimental PoC.
 
-> [!INFO]
-> See [playground](./playground/) for demos and [syntax](#syntax) section for usage.
+> [!NOTE]
+> See [playground](./playground/) ([online playground](https://stackblitz.com/github/h3js/rendu/tree/main/playground?file=index.html)) for demos and [syntax](#syntax) section for usage.
 
 ## CLI
 
@@ -58,7 +58,7 @@ console.log(html);
 
 ### `renderToResponse(htmlTemplate, opts)`
 
-Renders a HTML template to a Response object.
+Renders an HTML template to a Response object.
 
 The template can access the following variables:
 
@@ -80,6 +80,7 @@ The template can access the following variables:
 import { compileTemplate, renderToResponse } from "rendu";
 
 const render = compileTemplate(template, { stream: true });
+
 const response = await renderToResponse(render, { request });
 ```
 
@@ -152,7 +153,7 @@ Access request context and global state:
 <summary>local development</summary>
 
 - Clone this repository
-- Install latest LTS version of [Node.js](https://nodejs.org/en/)
+- Install the latest LTS version of [Node.js](https://nodejs.org/en/)
 - Enable [Corepack](https://github.com/nodejs/corepack) using `corepack enable`
 - Install dependencies using `pnpm install`
 - Run interactive tests using `pnpm dev`

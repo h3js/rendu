@@ -14,7 +14,7 @@ export const RENDER_TO_RESPONSE_KEYS = [
 ];
 
 /**
- * Renders a HTML template to a Response object.
+ * Renders an HTML template to a Response object.
  *
  * The template can access the following variables:
  *   - `globalThis`: The global object.
@@ -29,6 +29,7 @@ export const RENDER_TO_RESPONSE_KEYS = [
  * import { compileTemplate, renderToResponse } from "rendu";
  *
  * const render = compileTemplate(template, { stream: true });
+ *
  * const response = await renderToResponse(render, { request });
  * ```
  * @param htmlTemplate The compiled HTML template.
