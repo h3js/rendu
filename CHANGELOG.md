@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.0.3
+
+[compare changes](https://github.com/h3js/rendu/compare/v0.0.2...v0.0.3)
+
+### 🚀 Enhancements
+
+- Cookie support ([f312ef2](https://github.com/h3js/rendu/commit/f312ef2))
+- HasTemplateSyntax ([55d5085](https://github.com/h3js/rendu/commit/55d5085))
+
+### 💅 Refactors
+
+- Improve tokenizer ([7d4d053](https://github.com/h3js/rendu/commit/7d4d053))
+- Remove extra `globalThis` ([479dadb](https://github.com/h3js/rendu/commit/479dadb))
+- Split parser from compiler ([ae0e19b](https://github.com/h3js/rendu/commit/ae0e19b))
+
+### 🏡 Chore
+
+- Apply automated updates ([ab54170](https://github.com/h3js/rendu/commit/ab54170))
+- Prettier ignore readme for now ([a4cc4f4](https://github.com/h3js/rendu/commit/a4cc4f4))
+- Apply automated updates ([b6e8181](https://github.com/h3js/rendu/commit/b6e8181))
+- Update readme ([093b92f](https://github.com/h3js/rendu/commit/093b92f))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v0.0.2
 
 [compare changes](https://github.com/h3js/rendu/compare/v0.0.1...v0.0.2)
