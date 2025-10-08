@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.0.5
+
+[compare changes](https://github.com/h3js/rendu/compare/v0.0.4...v0.0.5)
+
+### 🚀 Enhancements
+
+- Support `context` keys to allow compiling in strict context ([ced8143](https://github.com/h3js/rendu/commit/ced8143))
+
+### 🏡 Chore
+
+- Prettierignore snapshots ([c0f6ec0](https://github.com/h3js/rendu/commit/c0f6ec0))
+- Apply automated updates ([7a9a20f](https://github.com/h3js/rendu/commit/7a9a20f))
+
+### ✅ Tests
+
+- Update snapshots ([8022211](https://github.com/h3js/rendu/commit/8022211))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v0.0.4
 
 [compare changes](https://github.com/h3js/rendu/compare/v0.0.3...v0.0.4)
