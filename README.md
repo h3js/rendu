@@ -182,6 +182,9 @@ Use `redirect()` function to redirect the user:
 
 The `htmlspecialchars()` function is available for escaping HTML content:
 
+> [!TIP]
+> When using curly `{{ }}` syntax, `htmlspecialchars` will be automatically applied.
+
 ```html
 <div><?= htmlspecialchars(userInput) ?></div>
 ```
