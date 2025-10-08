@@ -124,7 +124,7 @@ Use `<? ... ?>` for JavaScript control flow:
 
 ### Streaming Content
 
-Use `echo()` function for streaming content. Accepts: strings, functions, Promises, Response objects, or ReadableStreams:
+Use the `echo()` function for streaming content. Accepts: strings, functions, Promises, Response objects, or ReadableStreams:
 
 **Examples:**
 
@@ -134,7 +134,7 @@ Use `echo()` function for streaming content. Accepts: strings, functions, Promis
   echo("Welcome to our site!");
 </script>
 
-<!-- Async content from API (non blocking)-->
+<!-- Async content from API (non-blocking)-->
 <script server>
   echo("Hello");
   echo(async () => fetch("https://api.example.com/data"));
@@ -152,7 +152,6 @@ Access request context and global state:
 - `$HEADERS`: Request headers
 - `$RESPONSE`: Response configuration object
 - `$COOKIES`: Read-only object containing request cookies
-- `$RESPONSE`: Response configuration object
 
 ### Cookie Management
 
@@ -208,7 +207,7 @@ The `htmlspecialchars()` function is available for escaping HTML content:
 
 </details>
 
-## Perior Arts
+## Prior Art
 
 - [jaubourg/jhp](https://github.com/jaubourg/jhp)
 - [atinux/pjs](https://github.com/atinux/pjs)
