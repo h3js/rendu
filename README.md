@@ -65,6 +65,11 @@ Compile a template string into a render function code string.
 
 Check if a template string contains template syntax.
 
+### `RENDER_CONTEXT_KEYS`
+
+- **Type**: `array`
+- **Default**: `["htmlspecialchars","setCookie","redirect","$REQUEST","$METHOD","$URL","$HEADERS","$COOKIES","$RESPONSE"]`
+
 ### `renderToResponse(htmlTemplate, opts)`
 
 Renders an HTML template to a Response object.
