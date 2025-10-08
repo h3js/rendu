@@ -27,12 +27,12 @@
 
         <? for (const demo of demos) { ?>
         <a
-          href="<?= demo.path ?>"
+          href="{{ demo.path }}"
           class="btn btn-outline-primary w-100 d-flex justify-content-between align-items-center mb-2"
           role="button"
         >
-          <span><?= demo.name ?></span>
-          <span class="badge bg-light text-muted"><?= demo.path ?></span>
+          <span>{{ demo.name }}</span>
+          <span class="badge bg-light text-muted">{{ demo.path }}</span>
         </a>
         <? } ?>
       </div>

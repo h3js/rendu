@@ -1,7 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { parseTemplate } from "../src/_parser.ts";
+import { hasTemplateSyntax, parseTemplate } from "../src/parser.ts";
 
 describe("parser", () => {
+  describe("hasTemplateSyntax", () => {
+    it("no syntax", () => {
+      expect(hasTemplateSyntax("Hello, World!")).toBe(false);
+      expect(hasTemplateSyntax("Just some text.")).toBe(false);
+    });
+
+    it("with syntax", () => {
+      expect(hasTemplateSyntax("Hello, <?= name ?>!")).toBe(true);
+      expect(hasTemplateSyntax("{{ name }}")).toBe(true);
+      expect(hasTemplateSyntax("{{{ name }}}")).toBe(true);
+      expect(hasTemplateSyntax("<?js if (true) { ?>Yes<?js } ?>")).toBe(true);
+      expect(
+        hasTemplateSyntax("<script server>console.log('hi');</script>"),
+      ).toBe(true);
+    });
+  });
+
   describe("parseTemplate", () => {
     it("plain text", () => {
       const tokens = parseTemplate("Hello, World!");
@@ -18,6 +35,18 @@ describe("parser", () => {
     it("expression (short)", () => {
       const tokens = parseTemplate("<?= name ?>");
       expect(tokens).toMatchObject([{ type: "expr", contents: " name " }]);
+    });
+
+    it("expression (curly)", () => {
+      const tokens = parseTemplate("{{ name }}");
+      expect(tokens).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars(name)" },
+      ]);
+    });
+
+    it("expression (curly unescaped)", () => {
+      const tokens = parseTemplate("{{{ name }}}");
+      expect(tokens).toMatchObject([{ type: "expr", contents: "name" }]);
     });
 
     it("code", () => {

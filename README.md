@@ -32,10 +32,10 @@ Compile a template string into a render function.
 import { compileTemplate } from "rendu";
 
 const template = `
-  <h1><?= title ?></h1>
+  <h1>{{ title }}</h1>
   <ul>
   <? for (const item of items) { ?>
-    <li><?= item ?></li>
+    <li>{{ item }}</li>
   <? } ?>
   </ul>
 `;
@@ -98,11 +98,11 @@ Use `<script server>` to execute JavaScript on the server where it appears:
 
 ### Output Expressions
 
-Use `<?= expression ?>` to output values:
+Use `{{ expression }}` for HTML-escaped output, or `{{{ expression }}}` or `<?= expression ?>` for unescaped (raw) output:
 
 ```html
 <h1><?= title ?></h1>
-<div>Page visited: <?= visitedPagesCount ?></div>
+<div>Page visited: {{ visitedPagesCount }}</div>
 ```
 
 ### Control Structures
@@ -113,7 +113,7 @@ Use `<? ... ?>` for JavaScript control flow:
 <? if (items.length === 0) { ?>
 <p>No items found.</p>
 <? } ?> <? for (const item of items) { ?>
-<li><?= item.name ?></li>
+<li>{{ item.name }}</li>
 <? } ?>
 ```
 
@@ -121,8 +121,8 @@ Use `<? ... ?>` for JavaScript control flow:
 
 Use `echo()` function for streaming content. Accepts: strings, functions, Promises, Response objects, or ReadableStreams:
 
-
 **Examples:**
+
 ```html
 <!-- Simple string output -->
 <script server>
@@ -145,6 +145,7 @@ Access request context and global state:
 - `$METHOD`: HTTP method (GET, POST, etc.)
 - `$URL`: Request URL object
 - `$HEADERS`: Request headers
+- `$RESPONSE`: Response configuration object
 - `$COOKIES`: Read-only object containing request cookies
 - `$RESPONSE`: Response configuration object
 

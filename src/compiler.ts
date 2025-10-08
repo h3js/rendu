@@ -1,4 +1,4 @@
-import { parseTemplate } from "./_parser.ts";
+import { parseTemplate } from "./parser.ts";
 import { runtimeStream, runtimeText } from "./_runtime.ts";
 
 export type CompileTemplateOptions = {
@@ -98,13 +98,4 @@ export function compileTemplateToString(
     opts.stream === false ? runtimeText(inner) : runtimeStream(inner);
 
   return asyncWrapper === false ? body : `(async (data) => {${body}})`;
-}
-
-/**
- * Check if a template string contains template syntax.
- */
-export function hasTemplateSyntax(template: string): boolean {
-  return /(?:<script\s+server\s*>[\s\S]*?<\/script>)|(?:<\?(?:js)?=?[\s\S]*?\?>)/i.test(
-    template,
-  );
 }

@@ -69,28 +69,28 @@
         >
           <div class="me-2 flex-grow-1">
             <span
-              class="<?= t.done ? 'text-decoration-line-through text-muted' : '' ?>"
+              class="{{ t.done ? 'text-decoration-line-through text-muted' : '' }}"
             >
-              <?= htmlspecialchars(t.text) ?>
+              {{ htmlspecialchars(t.text) }}
             </span>
           </div>
           <div class="d-flex gap-1">
             <!-- Mark done / undo -->
             <form method="POST" action="#">
               <input type="hidden" name="_action" value="toggle" />
-              <input type="hidden" name="id" value="<?= t.id ?>" />
+              <input type="hidden" name="id" value="{{ t.id }}" />
               <button
-                class="btn btn-sm <?= t.done ? 'btn-outline-secondary' : 'btn-outline-success' ?>"
+                class="btn btn-sm {{ t.done ? 'btn-outline-secondary' : 'btn-outline-success' }}"
                 type="submit"
               >
-                <?= t.done ? 'Undo' : 'Done' ?>
+                {{ t.done ? 'Undo' : 'Done' }}
               </button>
             </form>
 
             <!-- Delete -->
             <form method="POST" action="#">
               <input type="hidden" name="_action" value="delete" />
-              <input type="hidden" name="id" value="<?= t.id ?>" />
+              <input type="hidden" name="id" value="{{ t.id }}" />
               <button
                 class="btn btn-sm btn-outline-danger"
                 type="submit"

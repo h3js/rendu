@@ -14,6 +14,15 @@ export function parseTemplate(template: string): Token[] {
     (_m, code) => `<?js${code}?>`,
   );
 
+  // Convert curly tags to PHP-style tags
+  const curlyRe = /{{\s*(.+)\s*}}|{{{\s*(.+)\s*}}}/g;
+  template = template.replace(curlyRe, (_m, code) => {
+    if (code[0] === "{") {
+      return `<?=${code.slice(1, -1).trim()}?>`;
+    }
+    return `<?=htmlspecialchars(${code.trim()})?>`;
+  });
+
   const tokens: Token[] = [];
   const re = /<\?(?:js)?(?<equals>=)?(?<value>[\s\S]*?)\?>/g;
   let cursor = 0;
@@ -46,4 +55,13 @@ export function parseTemplate(template: string): Token[] {
   }
 
   return tokens;
+}
+
+/**
+ * Check if a template string contains template syntax.
+ */
+export function hasTemplateSyntax(template: string): boolean {
+  return /(?:<script\s+server\s*>[\s\S]*?<\/script>)|(?:<\?(?:js)?=?[\s\S]*?\?>)|(?:\{\{[\s\S]*?\}\})/i.test(
+    template,
+  );
 }

@@ -1,10 +1,11 @@
 export {
   compileTemplate,
   compileTemplateToString,
-  hasTemplateSyntax,
   type CompiledTemplate,
   type CompileTemplateOptions,
 } from "./compiler.ts";
+
+export { hasTemplateSyntax } from "./parser.ts";
 
 export {
   renderToResponse,
