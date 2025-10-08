@@ -143,7 +143,6 @@ Access request context and global state:
 - `$HEADERS`: Request headers
 - `$COOKIES`: Read-only object containing request cookies
 - `$RESPONSE`: Response configuration object
-- `globalThis`: Global JavaScript object
 
 ### Cookie Management
 

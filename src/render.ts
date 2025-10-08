@@ -42,7 +42,6 @@ export async function renderToResponse(
 }
 
 export type RenderContext = {
-  globalThis: typeof globalThis;
   htmlspecialchars: (s: string) => string;
   setCookie: (
     name: string,
@@ -91,7 +90,6 @@ export function createRenderContext(options: RenderOptions): RenderContext {
 
   return {
     ...options.context,
-    globalThis,
     htmlspecialchars,
     setCookie,
     redirect,
