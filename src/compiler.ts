@@ -104,13 +104,13 @@ export function compileTemplateToString(
 export type Token = {
   type: "text" | "code" | "expr";
   contents: string;
-  loc: {
-    start: number;
-    end: number;
-  };
 };
 
 export function tokenize(template: string): Token[] {
+  if (!template) {
+    return [];
+  }
+
   // convert <script server> ... </script> to <?js ... ?>
   template = template.replace(
     /<script\s+server\s*>([\s\S]*?)<\/script>/gi,
@@ -120,30 +120,32 @@ export function tokenize(template: string): Token[] {
   const tokens: Token[] = [];
   const re = /<\?(?:js)?(?<equals>=)?(?<value>[\s\S]*?)\?>/g;
   let cursor = 0;
-  let m;
-  while ((m = re.exec(template))) {
-    const { equals, value } = m.groups || {};
-    // Literal chunk before the tag
-    const prev = template.slice(cursor, m.index);
-    const loc = { start: cursor, end: m.index };
-    if (prev) {
-      tokens.push({ type: "text", contents: prev, loc });
+  let match;
+  while ((match = re.exec(template))) {
+    const { equals, value } = match.groups || {};
+    const matchStart = match.index;
+    const matchEnd = matchStart + match[0].length;
+    if (matchStart > cursor) {
+      const textContent = template.slice(cursor, matchStart);
+      if (textContent) {
+        tokens.push({ type: "text", contents: textContent });
+      }
     }
     if (equals) {
-      tokens.push({ type: "expr", contents: value!, loc });
+      // Expression tag: <?= ... ?>
+      tokens.push({ type: "expr", contents: value || "" });
     } else {
-      tokens.push({ type: "code", contents: value!, loc });
+      // Code tag: <? ... ?> or <?js ... ?>
+      tokens.push({ type: "code", contents: value || "" });
     }
-    cursor = m.index + m[0].length;
+    cursor = matchEnd;
   }
 
-  const tail = template.slice(cursor);
-  if (tail) {
-    tokens.push({
-      type: "text",
-      contents: tail,
-      loc: { start: cursor, end: template.length },
-    });
+  if (cursor < template.length) {
+    const remainingText = template.slice(cursor);
+    if (remainingText) {
+      tokens.push({ type: "text", contents: remainingText });
+    }
   }
 
   return tokens;
