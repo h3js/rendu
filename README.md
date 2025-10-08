@@ -63,20 +63,6 @@ Compile a template string into a render function code string.
 
 Renders an HTML template to a Response object.
 
-The template can access the following variables:
-
-- `globalThis`: The global object.
-
-- `$REQUEST`: The incoming Request object (if provided).
-
-- `$METHOD`: The HTTP method of the request (if provided).
-
-- `$URL`: The URL of the request as a URL object (if provided).
-
-- `$HEADERS`: The headers of the request (if provided).
-
-- `$RESPONSE`: An object to customize the response, with properties: status, statusText, and headers.
-
 **Example:**
 
 ```ts

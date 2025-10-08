@@ -5,4 +5,9 @@ export {
   type CompileTemplateOptions,
 } from "./compiler.ts";
 
-export { renderToResponse, type RenderToResponseOptions } from "./web.ts";
+export {
+  renderToResponse,
+  createRenderContext,
+  type RenderContext,
+  type RenderOptions,
+} from "./render.ts";

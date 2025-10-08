@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      cookie-es:
+        specifier: ^2.0.0
+        version: 2.0.0
       srvx:
         specifier: ^0.8.14
         version: 0.8.14
@@ -45,6 +48,12 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.6.2)(jiti@2.6.1)
+
+  playground:
+    dependencies:
+      rendu:
+        specifier: latest
+        version: 0.0.2
 
 packages:
 
@@ -1760,6 +1769,10 @@ packages:
 
   regjsparser@0.12.0:
     resolution: {integrity: sha512-cnE+y8bz4NhMjISKbgeVJtqNbtf5QpjZP+Bslo+UqkIt9QPnX9q095eiRRASJG1/tz6dlNr6Z5NsBiWYokp6EQ==}
+    hasBin: true
+
+  rendu@0.0.2:
+    resolution: {integrity: sha512-syQtJEmTABYWO/K8EbT5SQ6lly0fMoENr5T4BP9diPtjBFArPTlRjwewH2Za9L8rB6D46sBt0tYLgNVjqdENHQ==}
     hasBin: true
 
   resolve-from@4.0.0:
@@ -3657,6 +3670,10 @@ snapshots:
   regjsparser@0.12.0:
     dependencies:
       jsesc: 3.0.2
+
+  rendu@0.0.2:
+    dependencies:
+      srvx: 0.8.14
 
   resolve-from@4.0.0: {}
 

@@ -1,3 +1,2 @@
-workspace:
-  packages:
-    - "playground"
+packages:
+  - "playground"

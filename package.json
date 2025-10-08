@@ -27,6 +27,7 @@
     "test:types": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
+    "cookie-es": "^2.0.0",
     "srvx": "^0.8.14"
   },
   "devDependencies": {
@@ -36,9 +37,9 @@
     "changelogen": "^0.6.2",
     "eslint": "^9.33.0",
     "eslint-config-unjs": "^0.5.0",
-    "rendu": "workspace:*",
     "obuild": "^0.2.1",
     "prettier": "^3.6.2",
+    "rendu": "workspace:*",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   },

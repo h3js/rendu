@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { log } from "srvx/log";
 import { serve } from "srvx";
 import { compileTemplate } from "./compiler.ts";
-import { renderToResponse } from "./web.ts";
+import { renderToResponse } from "./render.ts";
 import { serveStatic } from "srvx/static";
 
 const entry = resolve(process.argv[2] || ".");
