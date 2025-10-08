@@ -17,10 +17,10 @@ export type CompiledTemplate<T> = (data: Record<string, any>) => Promise<T>;
  * import { compileTemplate } from "rendu";
  *
  * const template = `
- *   <h1><?= title ?></h1>
+ *   <h1>{{ title }}</h1>
  *   <ul>
  *   <? for (const item of items) { ?>
- *     <li><?= item ?></li>
+ *     <li>{{ item }}</li>
  *   <? } ?>
  *   </ul>
  * `;

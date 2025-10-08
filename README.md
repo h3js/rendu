@@ -32,10 +32,10 @@ Compile a template string into a render function.
 import { compileTemplate } from "rendu";
 
 const template = `
-  <h1><?= title ?></h1>
+  <h1>{{ title }}</h1>
   <ul>
   <? for (const item of items) { ?>
-    <li><?= item ?></li>
+    <li>{{ item }}</li>
   <? } ?>
   </ul>
 `;
