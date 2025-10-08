@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.0.4
+
+[compare changes](https://github.com/h3js/rendu/compare/v0.0.3...v0.0.4)
+
+### 🚀 Enhancements
+
+- Curly syntax support ([0cd788e](https://github.com/h3js/rendu/commit/0cd788e))
+
+### 🏡 Chore
+
+- Apply automated updates ([1659fa8](https://github.com/h3js/rendu/commit/1659fa8))
+- Avoid duplicate `htmlspecialchars` ([c311d7a](https://github.com/h3js/rendu/commit/c311d7a))
+- Update jsdocs ([786c134](https://github.com/h3js/rendu/commit/786c134))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v0.0.3
 
 [compare changes](https://github.com/h3js/rendu/compare/v0.0.2...v0.0.3)
