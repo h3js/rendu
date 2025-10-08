@@ -61,6 +61,10 @@ Compile a template string into a render function code string.
 
 ### `createRenderContext(options)`
 
+### `hasTemplateSyntax(template)`
+
+Check if a template string contains template syntax.
+
 ### `renderToResponse(htmlTemplate, opts)`
 
 Renders an HTML template to a Response object.
