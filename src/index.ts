@@ -10,6 +10,7 @@ export { hasTemplateSyntax } from "./parser.ts";
 export {
   renderToResponse,
   createRenderContext,
+  RENDER_CONTEXT_KEYS,
   type RenderContext,
   type RenderOptions,
 } from "./render.ts";

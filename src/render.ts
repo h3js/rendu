@@ -61,6 +61,18 @@ export type RenderContext = {
   };
 };
 
+export const RENDER_CONTEXT_KEYS = [
+  "htmlspecialchars",
+  "setCookie",
+  "redirect",
+  "$REQUEST",
+  "$METHOD",
+  "$URL",
+  "$HEADERS",
+  "$COOKIES",
+  "$RESPONSE",
+] as const;
+
 export function createRenderContext(options: RenderOptions): RenderContext {
   // URL
   const url = new URL(options.request?.url || "http://_");

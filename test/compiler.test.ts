@@ -14,6 +14,19 @@ describe("compileTemplater", () => {
       ).toMatchFileSnapshot("snapshots/compileTemplated.js");
     });
 
+    it("compileTemplates to a function (known keys)", async () => {
+      const template = "Hello, <? if(name) ?><?= await name ?><? else ?>Guest";
+      const fn = compileTemplate(template, {
+        stream: false,
+        contextKeys: ["name"],
+      });
+      expect(await fn({ name: "JS" })).toBe("Hello, JS");
+      expect(await fn({ name: "" })).toBe("Hello, Guest");
+      await expect(
+        await format(fn.toString(), { parser: "acorn" }),
+      ).toMatchFileSnapshot("snapshots/compileTemplated.js");
+    });
+
     it("compileTemplates to a function (stream)", async () => {
       const template = "Hello, <? if(name) ?><?= await name ?><? else ?>Guest";
       const fn = compileTemplate(template, { stream: true });

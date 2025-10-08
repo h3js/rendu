@@ -5,6 +5,7 @@ export type CompileTemplateOptions = {
   stream?: boolean;
   filename?: string;
   preserveLines?: boolean;
+  contextKeys?: string[];
 };
 
 export type CompiledTemplate<T> = (data: Record<string, any>) => Promise<T>;
@@ -46,7 +47,7 @@ export function compileTemplate<O extends CompileTemplateOptions>(
   const sourcemaps = opts.filename ? `\n//# sourceURL=${opts.filename}` : "";
   try {
     const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-    const fn = new AsyncFunction("data", body + sourcemaps);
+    const fn = new AsyncFunction("__context__", body + sourcemaps);
     return fn as CompiledTemplate<any>;
   } catch (error) {
     throw new SyntaxError(
@@ -93,9 +94,14 @@ export function compileTemplateToString(
       // No default
     }
   }
-  const inner = /*js*/ `with(data){${parts.join(opts.preserveLines ? ";" : "\n")}}`;
-  const body =
-    opts.stream === false ? runtimeText(inner) : runtimeStream(inner);
 
-  return asyncWrapper === false ? body : `(async (data) => {${body}})`;
+  let body: string = parts.join(opts.preserveLines ? ";" : "\n");
+
+  body = opts.contextKeys
+    ? `const {${opts.contextKeys.join(",")}}=__context__;${body}`
+    : `with(__context__){${body}}`;
+
+  body = opts.stream === false ? runtimeText(body) : runtimeStream(body);
+
+  return asyncWrapper === false ? body : `(async (__context__) => {${body}})`;
 }
