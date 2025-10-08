@@ -59,6 +59,8 @@ Compile a template string into a render function code string.
 
 **Note:** This function is for advanced use cases where you need the generated code as a string.
 
+### `createRenderContext(options)`
+
 ### `renderToResponse(htmlTemplate, opts)`
 
 Renders an HTML template to a Response object.
