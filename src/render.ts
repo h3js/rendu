@@ -4,6 +4,7 @@ import {
   type CookieSerializeOptions,
 } from "cookie-es";
 import type { CompiledTemplate } from "./compiler.ts";
+import { FastResponse } from "srvx";
 
 export interface RenderOptions {
   request?: Request;
@@ -34,7 +35,7 @@ export async function renderToResponse(
   if (body instanceof Response) {
     return body;
   }
-  return new Response(body, {
+  return new FastResponse(body, {
     status: ctx.$RESPONSE.status,
     statusText: ctx.$RESPONSE.statusText,
     headers: ctx.$RESPONSE.headers,

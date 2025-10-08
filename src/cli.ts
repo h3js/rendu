@@ -2,7 +2,7 @@
 import { resolve } from "node:path";
 
 import { log } from "srvx/log";
-import { serve } from "srvx";
+import { FastResponse, serve } from "srvx";
 import { compileTemplate } from "./compiler.ts";
 import { renderToResponse } from "./render.ts";
 import { serveStatic } from "srvx/static";
@@ -28,7 +28,7 @@ serve({
         } catch (error) {
           console.error(error);
           const errMessage = String((error as Error).stack || error);
-          return new Response(errMessage, { status: 500 });
+          return new FastResponse(errMessage, { status: 500 });
         }
         return renderToResponse(htmlTemplate, {
           request,
@@ -40,6 +40,6 @@ serve({
     }),
   ],
   fetch: () => {
-    return new Response("Not Found", { status: 404 });
+    return new FastResponse("Not Found", { status: 404 });
   },
 });
