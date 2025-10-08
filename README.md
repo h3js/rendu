@@ -117,7 +117,15 @@ Use `<? ... ?>` for JavaScript control flow:
 
 Use `echo()` function for streaming content. Accepts: strings, functions, Promises, Response objects, or ReadableStreams:
 
+
+**Examples:**
 ```html
+<!-- Simple string output -->
+<script server>
+  echo("Welcome to our site!");
+</script>
+
+<!-- Async content from API (non blocking)-->
 <script server>
   echo("Hello");
   echo(async () => fetch("https://api.example.com/data"));
@@ -133,9 +141,46 @@ Access request context and global state:
 - `$METHOD`: HTTP method (GET, POST, etc.)
 - `$URL`: Request URL object
 - `$HEADERS`: Request headers
+- `$COOKIES`: Read-only object containing request cookies
 - `$RESPONSE`: Response configuration object
-- `$GLOBALS`: Global state object
 - `globalThis`: Global JavaScript object
+
+### Cookie Management
+
+Use `setCookie()` function to set cookies in the response:
+
+```html
+<script server>
+  setCookie("user", "RenduUser");
+  setCookie("session", "abc123", { maxAge: 3600, httpOnly: true });
+</script>
+```
+
+Access cookies from the request using `$COOKIES`:
+
+```html
+<div>Welcome, <?= $COOKIES["user"] || "Guest" ?>!</div>
+```
+
+### Response Control
+
+Use `redirect()` function to redirect the user:
+
+```html
+<script server>
+  if (!$COOKIES["auth"]) {
+    redirect("/login");
+  }
+</script>
+```
+
+### HTML Escaping
+
+The `htmlspecialchars()` function is available for escaping HTML content:
+
+```html
+<div><?= htmlspecialchars(userInput) ?></div>
+```
 
 ## Development
 
