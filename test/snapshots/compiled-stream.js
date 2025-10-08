@@ -1,9 +1,9 @@
-async function anonymous(data) {
+async function anonymous(__context__) {
   const __chunks__ = [];
   const echo = (chunk) => {
     __chunks__.push(chunk);
   };
-  with (data) {
+  with (__context__) {
     echo("Hello, ");
     if (name) echo(await name);
     else echo("Guest");
@@ -13,6 +13,9 @@ async function anonymous(data) {
     return new ReadableStream({
       async pull(controller) {
         for (let chunk of chunks) {
+          if (typeof chunk === "function") {
+            chunk = chunk();
+          }
           if (chunk instanceof Promise) {
             chunk = await chunk;
             if (!chunk) continue;

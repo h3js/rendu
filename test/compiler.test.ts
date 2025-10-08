@@ -11,7 +11,7 @@ describe("compileTemplater", () => {
       expect(await fn({ name: "" })).toBe("Hello, Guest");
       await expect(
         await format(fn.toString(), { parser: "acorn" }),
-      ).toMatchFileSnapshot("snapshots/compileTemplated.js");
+      ).toMatchFileSnapshot("snapshots/complied.js");
     });
 
     it("compileTemplates to a function (known keys)", async () => {
@@ -24,7 +24,7 @@ describe("compileTemplater", () => {
       expect(await fn({ name: "" })).toBe("Hello, Guest");
       await expect(
         await format(fn.toString(), { parser: "acorn" }),
-      ).toMatchFileSnapshot("snapshots/compileTemplated.js");
+      ).toMatchFileSnapshot("snapshots/compiled-strict.js");
     });
 
     it("compileTemplates to a function (stream)", async () => {
@@ -35,7 +35,7 @@ describe("compileTemplater", () => {
       );
       await expect(
         await format(fn.toString(), { parser: "acorn" }),
-      ).toMatchFileSnapshot("snapshots/compileTemplated-stream.js");
+      ).toMatchFileSnapshot("snapshots/compiled-stream.js");
     });
   });
 });

@@ -1,15 +1,18 @@
-async function anonymous(data) {
+async function anonymous(__context__) {
   const __chunks__ = [];
   const echo = (chunk) => {
     __chunks__.push(chunk);
   };
-  with (data) {
+  with (__context__) {
     echo("Hello, ");
     if (name) echo(await name);
     else echo("Guest");
   }
   let __out__ = "";
   for (let chunk of __chunks__) {
+    if (typeof chunk === "function") {
+      chunk = chunk();
+    }
     if (chunk instanceof Promise) {
       chunk = await chunk;
     }

@@ -34,4 +34,3 @@ async function anonymous(__context__) {
   }
   return __out__;
 }
-
