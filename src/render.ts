@@ -1,8 +1,5 @@
-import {
-  parse as parseCookies,
-  serialize as serializeCookie,
-  type CookieSerializeOptions,
-} from "cookie-es";
+import { parse as parseCookies, serialize as serializeCookie } from "cookie-es";
+import type { CookieSerializeOptions } from "cookie-es";
 import type { CompiledTemplate } from "./compiler.ts";
 import { FastResponse } from "srvx";
 
