@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.0.7
+
+[compare changes](https://github.com/h3js/rendu/compare/v0.0.6...v0.0.7)
+
+### 📦 Build
+
+- Update deps ([f62c8e0](https://github.com/h3js/rendu/commit/f62c8e0))
+
+### 🏡 Chore
+
+- Fix typos, remove duplicate list item, improve clarity ([#2](https://github.com/h3js/rendu/pull/2))
+
+### 🤖 CI
+
+- Bump setup-node ([#1](https://github.com/h3js/rendu/pull/1))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Abeer0 ([@iiio2](https://github.com/iiio2))
+- Karl Horky ([@karlhorky](https://github.com/karlhorky))
+
 ## v0.0.6
 
 [compare changes](https://github.com/h3js/rendu/compare/v0.0.5...v0.0.6)
