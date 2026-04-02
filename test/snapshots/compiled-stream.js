@@ -23,9 +23,7 @@ async function anonymous(__context__) {
               chunk = chunk.body;
             }
             if (!(chunk instanceof ReadableStream)) {
-              controller.enqueue(
-                chunk instanceof Uint8Array ? chunk : encoder.encode(chunk),
-              );
+              controller.enqueue(chunk instanceof Uint8Array ? chunk : encoder.encode(chunk));
               continue;
             }
           }
@@ -38,9 +36,7 @@ async function anonymous(__context__) {
             }
             reader.releaseLock();
           } else {
-            controller.enqueue(
-              chunk instanceof Uint8Array ? chunk : encoder.encode(chunk),
-            );
+            controller.enqueue(chunk instanceof Uint8Array ? chunk : encoder.encode(chunk));
           }
         }
         controller.close();

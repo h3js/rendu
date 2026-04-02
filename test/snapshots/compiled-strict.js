@@ -23,13 +23,11 @@ async function anonymous(__context__) {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        __out__ +=
-          typeof value === "string" ? value : new TextDecoder().decode(value);
+        __out__ += typeof value === "string" ? value : new TextDecoder().decode(value);
       }
       reader.releaseLock();
     } else {
-      __out__ +=
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+      __out__ += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
     }
   }
   return __out__;

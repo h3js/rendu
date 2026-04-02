@@ -13,18 +13,14 @@ describe("parser", () => {
       expect(hasTemplateSyntax("{{ name }}")).toBe(true);
       expect(hasTemplateSyntax("{{{ name }}}")).toBe(true);
       expect(hasTemplateSyntax("<?js if (true) { ?>Yes<?js } ?>")).toBe(true);
-      expect(
-        hasTemplateSyntax("<script server>console.log('hi');</script>"),
-      ).toBe(true);
+      expect(hasTemplateSyntax("<script server>console.log('hi');</script>")).toBe(true);
     });
   });
 
   describe("parseTemplate", () => {
     it("plain text", () => {
       const tokens = parseTemplate("Hello, World!");
-      expect(tokens).toMatchObject([
-        { type: "text", contents: "Hello, World!" },
-      ]);
+      expect(tokens).toMatchObject([{ type: "text", contents: "Hello, World!" }]);
     });
 
     it("expression", () => {
@@ -39,9 +35,7 @@ describe("parser", () => {
 
     it("expression (curly)", () => {
       const tokens = parseTemplate("{{ name }}");
-      expect(tokens).toMatchObject([
-        { type: "expr", contents: "htmlspecialchars(name)" },
-      ]);
+      expect(tokens).toMatchObject([{ type: "expr", contents: "htmlspecialchars(name)" }]);
     });
 
     it("expression (curly unescaped)", () => {

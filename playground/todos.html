@@ -36,9 +36,7 @@
       rel="stylesheet"
     />
   </head>
-  <body
-    class="bg-light d-flex justify-content-center align-items-center vh-100"
-  >
+  <body class="bg-light d-flex justify-content-center align-items-center vh-100">
     <div class="card shadow p-4" style="width: 24rem">
       <h1 class="h4 mb-3 text-center">Todos</h1>
 
@@ -64,13 +62,9 @@
         <? if ($GLOBALS.todos.length === 0) { ?>
         <li class="list-group-item text-muted text-center">No tasks yet.</li>
         <? } ?> <? for (const t of $GLOBALS.todos) { ?>
-        <li
-          class="list-group-item d-flex align-items-center justify-content-between"
-        >
+        <li class="list-group-item d-flex align-items-center justify-content-between">
           <div class="me-2 flex-grow-1">
-            <span
-              class="{{ t.done ? 'text-decoration-line-through text-muted' : '' }}"
-            >
+            <span class="{{ t.done ? 'text-decoration-line-through text-muted' : '' }}">
               {{ t.text }}
             </span>
           </div>
@@ -91,11 +85,7 @@
             <form method="POST" action="#">
               <input type="hidden" name="_action" value="delete" />
               <input type="hidden" name="id" value="{{ t.id }}" />
-              <button
-                class="btn btn-sm btn-outline-danger"
-                type="submit"
-                aria-label="Delete"
-              >
+              <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Delete">
                 ✕
               </button>
             </form>

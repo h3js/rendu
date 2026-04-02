@@ -50,12 +50,9 @@ export function compileTemplate<O extends CompileTemplateOptions>(
     const fn = new AsyncFunction("__context__", body + sourcemaps);
     return fn as CompiledTemplate<any>;
   } catch (error) {
-    throw new SyntaxError(
-      `Template syntax error: ${(error as Error).message}`,
-      {
-        // cause: inner,
-      },
-    );
+    throw new SyntaxError(`Template syntax error: ${(error as Error).message}`, {
+      // cause: inner,
+    });
   }
 }
 

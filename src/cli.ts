@@ -20,9 +20,7 @@ serve({
       dir: entry,
       methods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"],
       renderHTML({ request, html, filename }) {
-        let htmlTemplate: (
-          data: Record<string, any>,
-        ) => Promise<ReadableStream>;
+        let htmlTemplate: (data: Record<string, any>) => Promise<ReadableStream>;
         try {
           htmlTemplate = compileTemplate(html, { filename });
         } catch (error) {

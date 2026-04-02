@@ -41,11 +41,7 @@ export async function renderToResponse(
 
 export type RenderContext = {
   htmlspecialchars: (s: string) => string;
-  setCookie: (
-    name: string,
-    value: string,
-    options?: CookieSerializeOptions,
-  ) => void;
+  setCookie: (name: string, value: string, options?: CookieSerializeOptions) => void;
   redirect?: (url: string, status?: number) => void;
   $REQUEST?: Request;
   $METHOD?: string;
@@ -84,11 +80,7 @@ export function createRenderContext(options: RenderOptions): RenderContext {
 
   // Cookies
   const $COOKIES = lazyCookies(options.request!);
-  const setCookie = (
-    name: string,
-    value: string,
-    sOpts: CookieSerializeOptions = {},
-  ) => {
+  const setCookie = (name: string, value: string, sOpts: CookieSerializeOptions = {}) => {
     response.headers.append("Set-Cookie", serializeCookie(name, value, sOpts));
   };
 
@@ -116,18 +108,18 @@ function lazyCookies(req: Request | undefined) {
   if (!req) {
     return {};
   }
-  let parsed: Record<string, string> | undefined;
+  let parsed: Record<string, string | undefined> | undefined;
   return new Proxy(Object.freeze(Object.create(null)), {
     get(_, prop: string) {
       if (typeof prop !== "string") return undefined;
       parsed ??= parseCookies(req.headers.get("cookie") || "");
-      return parsed[prop];
+      return parsed[prop]!;
     },
   });
 }
 
 function htmlspecialchars(s: string): string {
-  // prettier-ignore
+  // oxfmt-ignore
   const htmlSpecialCharsMap: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
   return String(s).replace(/[&<>"']/g, (c) => htmlSpecialCharsMap[c] || c);
 }
