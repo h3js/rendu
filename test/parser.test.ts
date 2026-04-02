@@ -65,16 +65,12 @@ describe("parser", () => {
 
     it("multiline curly expression", () => {
       const tokens = parseTemplate("{{ a ?\n  b : c }}");
-      expect(tokens).toMatchObject([
-        { type: "expr", contents: "htmlspecialchars(a ?\n  b : c)" },
-      ]);
+      expect(tokens).toMatchObject([{ type: "expr", contents: "htmlspecialchars(a ?\n  b : c)" }]);
     });
 
     it("multiline curly unescaped expression", () => {
       const tokens = parseTemplate("{{{ a ?\n  b : c }}}");
-      expect(tokens).toMatchObject([
-        { type: "expr", contents: "a ?\n  b : c" },
-      ]);
+      expect(tokens).toMatchObject([{ type: "expr", contents: "a ?\n  b : c" }]);
     });
 
     it("code", () => {
@@ -96,9 +92,7 @@ describe("parser", () => {
     });
 
     it("script server", () => {
-      const tokens = parseTemplate(
-        "<script server>const x = 1;</script><p><?= x ?></p>",
-      );
+      const tokens = parseTemplate("<script server>const x = 1;</script><p><?= x ?></p>");
       expect(tokens).toMatchObject([
         { type: "code", contents: "const x = 1;" },
         { type: "text", contents: "<p>" },

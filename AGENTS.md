@@ -57,7 +57,7 @@ pnpm vitest run <path>    # Run specific test file
 pnpm test                 # Full: lint + type-check + tests with coverage
 pnpm build                # Build with obuild (outputs to dist/)
 pnpm play                 # Start playground server
-pnpm lint:fix             # automd + oxlint --fix + oxfmt
+pnpm fmt             # automd + oxlint --fix + oxfmt
 ```
 
 ## Key Dependencies
