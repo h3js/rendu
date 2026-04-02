@@ -15,12 +15,12 @@ export function parseTemplate(template: string): Token[] {
   );
 
   // Convert curly tags to PHP-style tags
-  const curlyRe = /{{\s*(.+)\s*}}|{{{\s*(.+)\s*}}}/g;
-  template = template.replace(curlyRe, (_m, code) => {
-    if (code[0] === "{") {
-      return `<?=${code.slice(1, -1).trim()}?>`;
+  const curlyRe = /{{{\s*(.+?)\s*}}}|{{\s*(.+?)\s*}}/g;
+  template = template.replace(curlyRe, (_m, raw, escaped) => {
+    if (raw) {
+      return `<?=${raw.trim()}?>`;
     }
-    return `<?=htmlspecialchars(${code.trim()})?>`;
+    return `<?=htmlspecialchars(${escaped.trim()})?>`;
   });
 
   const tokens: Token[] = [];

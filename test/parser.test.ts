@@ -38,6 +38,26 @@ describe("parser", () => {
       expect(tokens).toMatchObject([{ type: "expr", contents: "htmlspecialchars(name)" }]);
     });
 
+    it("multiple curly expressions on same line", () => {
+      const tokens = parseTemplate('<a href="{{ url }}" target="_blank">{{ label }}</a>');
+      expect(tokens).toMatchObject([
+        { type: "text", contents: '<a href="' },
+        { type: "expr", contents: "htmlspecialchars(url)" },
+        { type: "text", contents: '" target="_blank">' },
+        { type: "expr", contents: "htmlspecialchars(label)" },
+        { type: "text", contents: "</a>" },
+      ]);
+    });
+
+    it("multiple curly unescaped expressions on same line", () => {
+      const tokens = parseTemplate("{{{ a }}} and {{{ b }}}");
+      expect(tokens).toMatchObject([
+        { type: "expr", contents: "a" },
+        { type: "text", contents: " and " },
+        { type: "expr", contents: "b" },
+      ]);
+    });
+
     it("expression (curly unescaped)", () => {
       const tokens = parseTemplate("{{{ name }}}");
       expect(tokens).toMatchObject([{ type: "expr", contents: "name" }]);
