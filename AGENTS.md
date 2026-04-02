@@ -80,12 +80,12 @@ Snapshots live in `test/snapshots/`.
 
 ## Template Syntax Reference
 
-| Syntax | Purpose |
-|---|---|
-| `<? code ?>` / `<?js code ?>` | JavaScript control flow |
-| `<?= expr ?>` | Raw output expression |
-| `{{ expr }}` | HTML-escaped output |
-| `{{{ expr }}}` | Raw (unescaped) output |
+| Syntax                        | Purpose                  |
+| ----------------------------- | ------------------------ |
+| `<? code ?>` / `<?js code ?>` | JavaScript control flow  |
+| `<?= expr ?>`                 | Raw output expression    |
+| `{{ expr }}`                  | HTML-escaped output      |
+| `{{{ expr }}}`                | Raw (unescaped) output   |
 | `<script server>...</script>` | Server-side script block |
 
 ## Context Variables
