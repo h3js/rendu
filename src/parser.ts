@@ -15,7 +15,7 @@ export function parseTemplate(template: string): Token[] {
   );
 
   // Convert curly tags to PHP-style tags
-  const curlyRe = /{{{\s*(.+?)\s*}}}|{{\s*(.+?)\s*}}/g;
+  const curlyRe = /{{{\s*([\s\S]+?)\s*}}}|{{\s*([\s\S]+?)\s*}}/g;
   template = template.replace(curlyRe, (_m, raw, escaped) => {
     if (raw) {
       return `<?=${raw.trim()}?>`;

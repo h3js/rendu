@@ -63,6 +63,20 @@ describe("parser", () => {
       expect(tokens).toMatchObject([{ type: "expr", contents: "name" }]);
     });
 
+    it("multiline curly expression", () => {
+      const tokens = parseTemplate("{{ a ?\n  b : c }}");
+      expect(tokens).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars(a ?\n  b : c)" },
+      ]);
+    });
+
+    it("multiline curly unescaped expression", () => {
+      const tokens = parseTemplate("{{{ a ?\n  b : c }}}");
+      expect(tokens).toMatchObject([
+        { type: "expr", contents: "a ?\n  b : c" },
+      ]);
+    });
+
     it("code", () => {
       const tokens = parseTemplate("<?js if (true) { ?>123<?js } ?>");
       expect(tokens).toMatchObject([
@@ -79,6 +93,23 @@ describe("parser", () => {
         { type: "text", contents: "123" },
         { type: "code", contents: " } " },
       ]);
+    });
+
+    it("script server", () => {
+      const tokens = parseTemplate(
+        "<script server>const x = 1;</script><p><?= x ?></p>",
+      );
+      expect(tokens).toMatchObject([
+        { type: "code", contents: "const x = 1;" },
+        { type: "text", contents: "<p>" },
+        { type: "expr", contents: " x " },
+        { type: "text", contents: "</p>" },
+      ]);
+    });
+
+    it("empty expression", () => {
+      const tokens = parseTemplate("<?= ?>");
+      expect(tokens).toMatchObject([{ type: "expr", contents: " " }]);
     });
 
     it("mixed", () => {
