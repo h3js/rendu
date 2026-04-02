@@ -4,9 +4,6 @@
 
 Rendu is a lightweight toolkit for mixing HTML and JavaScript with a focus on simplicity, standards and progressive rendering.
 
-> [!WARNING]
-> This is an experimental PoC.
-
 > [!NOTE]
 > See [playground](./playground/) ([online playground](https://stackblitz.com/github/h3js/rendu/tree/main/playground?file=index.html)) for demos and [syntax](#syntax) section for usage.
 
