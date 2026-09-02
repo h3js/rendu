@@ -1,11 +1,11 @@
 #! /usr/bin/env node
 import { resolve } from "node:path";
 
-import { log } from "srvx/log";
+import { loggerMiddleware } from "srvx/log";
 import { FastResponse, serve } from "srvx";
 import { compileTemplate } from "./compiler.ts";
 import { renderToResponse } from "./render.ts";
-import { serveStatic } from "srvx/static";
+import { staticMiddleware } from "srvx/static";
 
 const entry = resolve(process.argv[2] || ".");
 
@@ -15,8 +15,8 @@ const $GLOBALS = Object.create(null);
 
 serve({
   middleware: [
-    log(),
-    serveStatic({
+    loggerMiddleware(),
+    staticMiddleware({
       dir: entry,
       methods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"],
       renderHTML({ request, html, filename }) {
