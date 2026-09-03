@@ -148,39 +148,51 @@ Use the `echo()` function for streaming content. Accepts: strings, functions, Pr
 `echo()` streams strictly in source order, so one slow value holds up everything after it. Use `defer()` to stream that value **out of order**: a marker is written in place immediately, the rest of the document keeps streaming, and the content is patched in when it resolves.
 
 ```html
-<aside>
-  <?= defer(getRecommendations(), '
-  <ul class="skeleton">
-    <li></li>
-    <li></li>
-  </ul>
-  ') ?>
-</aside>
+<script server>
+  const skeleton = '<ul class="skeleton"><li></li><li></li></ul>';
+</script>
+
+<aside><?= defer(getRecommendations(), skeleton) ?></aside>
 ```
 
-`defer(value, placeholder?)` accepts the same values as `echo()` (strings, functions, Promises, `Response` objects, `ReadableStream`s). The optional `placeholder` is raw HTML shown until the value arrives; without one, nothing is shown.
+`defer(value, placeholder?)` accepts the same values as `echo()` (strings, functions, Promises, `Response` objects, `ReadableStream`s). A function is called immediately, so its work starts as soon as `defer()` is reached rather than when the patch is flushed. The optional `placeholder` is shown until the value arrives; any falsy placeholder means "no placeholder".
 
 Use `<?= ?>` (or `echo()`), not `{{ }}` — `defer()` returns raw marker markup, which `{{ }}` would escape into visible text.
 
-Deferred values are flushed in **completion order**, not source order, so a fast panel is never held up by a slow one. On the wire:
+> [!WARNING]
+> Both the value and the `placeholder` are **raw, unescaped HTML**, exactly like `{{{ }}}`. Run anything request-derived through `htmlspecialchars()` first — `defer(search(q), '<p>Searching for ' + htmlspecialchars(q) + '…</p>')`. The placeholder must also be balanced markup: an unclosed tag makes the browser nest the range's end marker inside it, and the patch is then dropped.
+
+Deferred values are flushed in **completion order**, not source order, so a fast panel is never held up by a slow one. On the wire (marker names carry a per-render prefix so two renders composed into one document cannot patch each other):
 
 ```html
 <aside>
-  <?start name="d0">
+  <?start name="dk3p9x_0">
   <ul class="skeleton">
     …
   </ul>
   <?end>
 </aside>
 … rest of the document, streamed immediately …
-<template for="d0"
+<template for="dk3p9x_0"
   ><ul>
     …the real content…
   </ul></template
 >
 ```
 
-This is the standard [`<template for>`](https://github.com/whatwg/html/pull/11818) mechanism: the browser replaces the marked region as the patch arrives, with no client-side framework involved. A small (~1KB) inline script is emitted once as a fallback for browsers without native support; disable it with `compileTemplate(html, { polyfill: false })` if your page is served under a `script-src` policy that forbids inline scripts.
+This is the standard [`<template for>`](https://github.com/whatwg/html/pull/11818) mechanism: the browser replaces the marked region as the patch arrives, with no client-side framework involved. A small (~1KB) inline script is emitted once as a fallback for browsers without native support.
+
+> [!IMPORTANT]
+> No browser ships `<template for>` on by default yet (Chrome has it behind _Experimental Web Platform Features_; Gecko and WebKit are still open). The inline fallback is therefore what actually applies the patches today, so `compileTemplate(html, { polyfill: false })` means deferred content **never appears at all** — not "appears late". The same is true with JavaScript disabled, or for crawlers that do not execute scripts: they see the placeholder and the real content stays inside an inert `<template>`. Under a `script-src` policy that forbids inline scripts, prefer relaxing the policy for these scripts over turning the fallback off.
+
+Failure is per-panel, not per-page. If a deferred value rejects, its patch is skipped, the error is logged server-side, the placeholder stays in place, and the rest of the document — including every other panel — keeps streaming. That matches `<template for>`, where a failed patch is silent by design; there is no status code left to fail with once the head and shell are on the wire.
+
+For the same reason, `setCookie()` and `redirect()` throw if they are called from inside a deferred value: the response head has already been sent.
+
+Two limitations worth knowing:
+
+- A deferred value must not contain an unbalanced `</template>`; rendu escapes those so a value cannot break out of its own patch, which means a **nested `<template>` element inside a deferred value is not supported**.
+- Do not embed one `defer()`'s return value inside another `defer()`'s value. The inner marker only reaches the document when the outer patch is applied, by which time the inner patch has already gone out; rendu logs an error when it detects this. Call `defer()` from _inside_ the deferred value instead.
 
 In non-streaming mode (`{ stream: false }`) there is no stream to reorder, so `defer()` renders the value in place and the placeholder is dropped.
 

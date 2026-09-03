@@ -8,6 +8,9 @@ export interface RenderOptions {
   context?: Record<string, unknown>;
 }
 
+/** Prepared responses whose head has already been handed to the server. */
+const committed = new WeakSet<object>();
+
 /**
  * Renders an HTML template to a Response object.
  *
@@ -32,11 +35,16 @@ export async function renderToResponse(
   if (body instanceof Response) {
     return body;
   }
-  return new FastResponse(body, {
+  const response = new FastResponse(body, {
     status: ctx.$RESPONSE.status,
     statusText: ctx.$RESPONSE.statusText,
     headers: ctx.$RESPONSE.headers,
   });
+  // The head is on the wire from here on, so `setCookie()` / `redirect()` can no longer
+  // take effect. `defer()` makes running request work after this point routine, so say so
+  // loudly instead of mutating an already-serialized Headers object.
+  committed.add(ctx.$RESPONSE);
+  return response;
 }
 
 export type RenderContext = {
@@ -80,12 +88,22 @@ export function createRenderContext(options: RenderOptions): RenderContext {
 
   // Cookies
   const $COOKIES = lazyCookies(options.request);
+  const assertOpen = (what: string) => {
+    if (committed.has(response)) {
+      throw new Error(
+        `${what}() was called after the response head was sent. Move it out of the deferred ` +
+          `value: only the body can still be written once defer() has started streaming.`,
+      );
+    }
+  };
   const setCookie = (name: string, value: string, sOpts: CookieSerializeOptions = {}) => {
+    assertOpen("setCookie");
     response.headers.append("Set-Cookie", serializeCookie(name, value, sOpts));
   };
 
   // Redirect
   const redirect = (to: string, status = 302) => {
+    assertOpen("redirect");
     response.status = status;
     response.headers.set("Location", to);
   };

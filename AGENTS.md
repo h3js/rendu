@@ -8,7 +8,8 @@ JavaScript Hypertext Preprocessor — a lightweight toolkit for mixing HTML and 
 src/
   parser.ts     # Tokenizer: template string → Token[] (text | code | expr)
   compiler.ts   # Token[] → async function body string → AsyncFunction
-  _runtime.ts   # Inlined JS runtime for echo/stream/text concatenation
+  _runtime.ts   # Inlined JS runtime: echo/stream/text concatenation, defer() and the
+                #   <template for> patch flush + client fallback
   render.ts     # Request/response layer: cookies, headers, redirects, HTML escaping
   cli.ts        # CLI entry: serves static files with srvx, renders .html as templates
   index.ts      # Public API re-exports
@@ -65,7 +66,7 @@ pnpm fmt             # automd + oxlint --fix + oxfmt
 - **`srvx`** — HTTP server (FastResponse, serve, serveStatic, log)
 - **`cookie-es`** — Cookie parsing/serialization
 - **`obuild`** — Build tool
-- **`vitest`** — Test runner
+- **`vitest`** — Test runner (with **`happy-dom`** for the client-fallback tests)
 - **`oxlint` / `oxfmt`** — Linter and formatter
 - **`tsgo`** (`@typescript/native-preview`) — Type checking
 
@@ -99,4 +100,12 @@ Snapshots live in `test/snapshots/`.
 
 ## Context Variables
 
-`$REQUEST`, `$METHOD`, `$URL`, `$HEADERS`, `$COOKIES`, `$RESPONSE`, `htmlspecialchars()`, `setCookie()`, `redirect()`, `echo()`, `defer()`
+`$REQUEST`, `$METHOD`, `$URL`, `$HEADERS`, `$COOKIES`, `$RESPONSE`, `htmlspecialchars()`, `setCookie()`, `redirect()`
+
+## Runtime Helpers
+
+`echo()` and `defer()` are **not** context variables — they are declarations in the inlined
+prelude (`src/_runtime.ts`), so they are in scope in every compiled template regardless of
+the render context. Do not add them to `RENDER_CONTEXT_KEYS`: the `contextKeys` path
+compiles to `const { echo, defer } = __context__`, which shadows the prelude declarations
+with `undefined` and fails at render time.
