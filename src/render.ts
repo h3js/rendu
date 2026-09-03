@@ -42,7 +42,7 @@ export async function renderToResponse(
 export type RenderContext = {
   htmlspecialchars: (s: string) => string;
   setCookie: (name: string, value: string, options?: CookieSerializeOptions) => void;
-  redirect?: (url: string, status?: number) => void;
+  redirect: (url: string, status?: number) => void;
   $REQUEST?: Request;
   $METHOD?: string;
   $URL?: URL;
@@ -75,11 +75,11 @@ export function createRenderContext(options: RenderOptions): RenderContext {
   const response = {
     status: 200,
     statusText: "OK",
-    headers: new Headers({ "Content-Type": "text/html ; charset=utf-8" }),
+    headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
   };
 
   // Cookies
-  const $COOKIES = lazyCookies(options.request!);
+  const $COOKIES = lazyCookies(options.request);
   const setCookie = (name: string, value: string, sOpts: CookieSerializeOptions = {}) => {
     response.headers.append("Set-Cookie", serializeCookie(name, value, sOpts));
   };
@@ -104,16 +104,37 @@ export function createRenderContext(options: RenderOptions): RenderContext {
   };
 }
 
-function lazyCookies(req: Request | undefined) {
-  if (!req) {
-    return {};
-  }
-  let parsed: Record<string, string | undefined> | undefined;
-  return new Proxy(Object.freeze(Object.create(null)), {
-    get(_, prop: string) {
+/**
+ * A lazily parsed, read-only view of the request cookies.
+ *
+ * The cookie header is only parsed on first access. All traps are backed by the parsed
+ * map so `get`, `in`, `Object.keys()`, spread and `JSON.stringify()` are consistent.
+ */
+function lazyCookies(req: Request | undefined): Readonly<Record<string, string>> {
+  let parsed: Record<string, string> | undefined;
+  const cookies = (): Record<string, string> => {
+    parsed ??= req ? (parseCookies(req.headers.get("cookie") || "") as Record<string, string>) : {};
+    return parsed;
+  };
+  // Note: the target is an empty, extensible null-prototype object so that the traps
+  // below are free to report whatever the parsed cookies contain.
+  return new Proxy(Object.create(null) as Record<string, string>, {
+    get(_target, prop) {
       if (typeof prop !== "string") return undefined;
-      parsed ??= parseCookies(req.headers.get("cookie") || "");
-      return parsed[prop]!;
+      const all = cookies();
+      return Object.hasOwn(all, prop) ? all[prop] : undefined;
+    },
+    has(_target, prop) {
+      return typeof prop === "string" && Object.hasOwn(cookies(), prop);
+    },
+    ownKeys() {
+      return Object.keys(cookies());
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      if (typeof prop !== "string") return undefined;
+      const all = cookies();
+      if (!Object.hasOwn(all, prop)) return undefined;
+      return { value: all[prop], enumerable: true, configurable: true, writable: false };
     },
   });
 }
