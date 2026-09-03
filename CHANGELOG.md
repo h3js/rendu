@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.1
+
+[compare changes](https://github.com/h3js/rendu/compare/v0.1.0...v0.1.1)
+
+### 🩹 Fixes
+
+- **parser:** Expand curly tags only in text and skip processing instructions ([2cbad05](https://github.com/h3js/rendu/commit/2cbad05))
+- **compiler:** Consistent output handling in runtimes and preserveLines ([87ddec0](https://github.com/h3js/rendu/commit/87ddec0))
+- **render:** Content-type header and enumerable cookies ([08edb08](https://github.com/h3js/rendu/commit/08edb08))
+- **cli:** Handle render errors ([7257d93](https://github.com/h3js/rendu/commit/7257d93))
+
+### 🏡 Chore
+
+- Update deps ([9881c50](https://github.com/h3js/rendu/commit/9881c50))
+- Update srvx ([1ab78be](https://github.com/h3js/rendu/commit/1ab78be))
+- Update deps ([f2035a8](https://github.com/h3js/rendu/commit/f2035a8))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v0.0.7
 
 [compare changes](https://github.com/h3js/rendu/compare/v0.0.6...v0.0.7)
