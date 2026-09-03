@@ -21,7 +21,7 @@
     "fmt": "automd && oxlint . --fix && oxfmt .",
     "prepack": "pnpm build",
     "play": "pnpm rendu playground",
-    "release": "pnpm test && pnpm build && changelogen --release && npm publish && git push --follow-tags",
+    "release": "pnpm test && pnpm build && changelogen --release && pnpm publish && git push --follow-tags",
     "rendu": "node ./src/cli.ts",
     "test": "pnpm lint && pnpm test:types && vitest run --coverage",
     "test:types": "tsc --noEmit --skipLibCheck"
