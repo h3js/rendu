@@ -9,7 +9,7 @@ import { staticMiddleware } from "srvx/static";
 
 const entry = resolve(process.argv[2] || ".");
 
-console.log(entry);
+console.log(`Serving ${entry}`);
 
 const $GLOBALS = Object.create(null);
 
@@ -19,21 +19,20 @@ serve({
     staticMiddleware({
       dir: entry,
       methods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"],
-      renderHTML({ request, html, filename }) {
-        let htmlTemplate: (data: Record<string, any>) => Promise<ReadableStream>;
+      async renderHTML({ request, html, filename }) {
         try {
-          htmlTemplate = compileTemplate(html, { filename });
+          const htmlTemplate = compileTemplate(html, { filename });
+          return await renderToResponse(htmlTemplate, {
+            request,
+            context: {
+              $GLOBALS,
+            },
+          });
         } catch (error) {
           console.error(error);
           const errMessage = String((error as Error).stack || error);
           return new FastResponse(errMessage, { status: 500 });
         }
-        return renderToResponse(htmlTemplate, {
-          request,
-          context: {
-            $GLOBALS,
-          },
-        });
       },
     }),
   ],
