@@ -30,16 +30,16 @@
     "srvx": "^1.0.1"
   },
   "devDependencies": {
-    "@types/node": "^25.9.5",
+    "@types/node": "^26.4.1",
     "@vitest/coverage-v8": "^4.1.11",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "cookie-es": "^3.1.1",
     "eslint-config-unjs": "^0.6.2",
     "obuild": "^0.4.39",
-    "oxfmt": "^0.43.0",
+    "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
-    "rendu": "^0.0.7",
+    "rendu": "link:*",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   },
