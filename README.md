@@ -143,6 +143,47 @@ Use the `echo()` function for streaming content. Accepts: strings, functions, Pr
 </script>
 ```
 
+### Deferred (Out-of-Order) Streaming
+
+`echo()` streams strictly in source order, so one slow value holds up everything after it. Use `defer()` to stream that value **out of order**: a marker is written in place immediately, the rest of the document keeps streaming, and the content is patched in when it resolves.
+
+```html
+<aside>
+  <?= defer(getRecommendations(), '
+  <ul class="skeleton">
+    <li></li>
+    <li></li>
+  </ul>
+  ') ?>
+</aside>
+```
+
+`defer(value, placeholder?)` accepts the same values as `echo()` (strings, functions, Promises, `Response` objects, `ReadableStream`s). The optional `placeholder` is raw HTML shown until the value arrives; without one, nothing is shown.
+
+Use `<?= ?>` (or `echo()`), not `{{ }}` — `defer()` returns raw marker markup, which `{{ }}` would escape into visible text.
+
+Deferred values are flushed in **completion order**, not source order, so a fast panel is never held up by a slow one. On the wire:
+
+```html
+<aside>
+  <?start name="d0">
+  <ul class="skeleton">
+    …
+  </ul>
+  <?end>
+</aside>
+… rest of the document, streamed immediately …
+<template for="d0"
+  ><ul>
+    …the real content…
+  </ul></template
+>
+```
+
+This is the standard [`<template for>`](https://github.com/whatwg/html/pull/11818) mechanism: the browser replaces the marked region as the patch arrives, with no client-side framework involved. A small (~1KB) inline script is emitted once as a fallback for browsers without native support; disable it with `compileTemplate(html, { polyfill: false })` if your page is served under a `script-src` policy that forbids inline scripts.
+
+In non-streaming mode (`{ stream: false }`) there is no stream to reorder, so `defer()` renders the value in place and the placeholder is dropped.
+
 ### Global Variables
 
 Access request context and global state:
