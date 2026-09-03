@@ -62,6 +62,10 @@ Compile a template string into a render function code string.
 
 Check if a template string contains template syntax.
 
+### `parseTemplate(template)`
+
+Parse a template string into `text`, `code` and `expr` tokens.
+
 ### `RENDER_CONTEXT_KEYS`
 
 - **Type**: `array`

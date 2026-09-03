@@ -5,7 +5,7 @@ export {
   type CompileTemplateOptions,
 } from "./compiler.ts";
 
-export { hasTemplateSyntax } from "./parser.ts";
+export { hasTemplateSyntax, parseTemplate, type Token } from "./parser.ts";
 
 export {
   renderToResponse,

@@ -8,12 +8,26 @@ describe("parser", () => {
       expect(hasTemplateSyntax("Just some text.")).toBe(false);
     });
 
+    it("processing instructions are not template syntax", () => {
+      expect(hasTemplateSyntax('<div><?marker name="x"?></div>')).toBe(false);
+      expect(hasTemplateSyntax('<?xml version="1.0"?>')).toBe(false);
+      expect(hasTemplateSyntax('<?start name="rec"><p>hi</p><?end>')).toBe(false);
+      expect(hasTemplateSyntax('<?json {"a":1} ?>')).toBe(false);
+    });
+
     it("with syntax", () => {
       expect(hasTemplateSyntax("Hello, <?= name ?>!")).toBe(true);
       expect(hasTemplateSyntax("{{ name }}")).toBe(true);
       expect(hasTemplateSyntax("{{{ name }}}")).toBe(true);
       expect(hasTemplateSyntax("<?js if (true) { ?>Yes<?js } ?>")).toBe(true);
       expect(hasTemplateSyntax("<script server>console.log('hi');</script>")).toBe(true);
+      expect(hasTemplateSyntax('<script server type="module">const x = 1;</script>')).toBe(true);
+      expect(hasTemplateSyntax('<script type="module" server>const x = 1;</script>')).toBe(true);
+      expect(hasTemplateSyntax('<script type="module">const x = 1;</script>')).toBe(false);
+      expect(hasTemplateSyntax("<?js x ?>")).toBe(true);
+      expect(hasTemplateSyntax("<?js= x ?>")).toBe(true);
+      expect(hasTemplateSyntax("<? x ?>")).toBe(true);
+      expect(hasTemplateSyntax("<?=htmlspecialchars(x)?>")).toBe(true);
     });
   });
 
@@ -101,9 +115,99 @@ describe("parser", () => {
       ]);
     });
 
+    it("script server with extra attributes", () => {
+      expect(
+        parseTemplate('<script server type="module">const x = 1;</script><?= x ?>'),
+      ).toMatchObject([
+        { type: "code", contents: "const x = 1;" },
+        { type: "expr", contents: " x " },
+      ]);
+      expect(
+        parseTemplate('<script type="module" server>const x = 1;</script><?= x ?>'),
+      ).toMatchObject([
+        { type: "code", contents: "const x = 1;" },
+        { type: "expr", contents: " x " },
+      ]);
+    });
+
+    it("script without server attribute is text", () => {
+      const tokens = parseTemplate('<script type="module">const x = 1;</script>');
+      expect(tokens).toMatchObject([
+        { type: "text", contents: '<script type="module">const x = 1;</script>' },
+      ]);
+    });
+
+    it("curly tags inside script server are left as code", () => {
+      const tokens = parseTemplate('<script server>const t = "{{name}}";</script><?= t ?>');
+      expect(tokens).toMatchObject([
+        { type: "code", contents: 'const t = "{{name}}";' },
+        { type: "expr", contents: " t " },
+      ]);
+    });
+
+    it("curly braces inside code tags are left as code", () => {
+      const tokens = parseTemplate("<? if (x) {{ y }} ?>ok");
+      expect(tokens).toMatchObject([
+        { type: "code", contents: " if (x) {{ y }} " },
+        { type: "text", contents: "ok" },
+      ]);
+    });
+
+    it("mixed escaped and unescaped curly expressions", () => {
+      const tokens = parseTemplate("a {{ b }} c {{{ d }}} e");
+      expect(tokens).toMatchObject([
+        { type: "text", contents: "a " },
+        { type: "expr", contents: "htmlspecialchars(b)" },
+        { type: "text", contents: " c " },
+        { type: "expr", contents: "d" },
+        { type: "text", contents: " e" },
+      ]);
+    });
+
     it("empty expression", () => {
       const tokens = parseTemplate("<?= ?>");
       expect(tokens).toMatchObject([{ type: "expr", contents: " " }]);
+    });
+
+    it("html processing instructions stay as text", () => {
+      expect(parseTemplate('<div><?marker name="x"?></div>')).toMatchObject([
+        { type: "text", contents: '<div><?marker name="x"?></div>' },
+      ]);
+      expect(parseTemplate('<?start name="rec"><p>hi</p><?end>')).toMatchObject([
+        { type: "text", contents: '<?start name="rec"><p>hi</p><?end>' },
+      ]);
+      expect(parseTemplate('<?xml version="1.0"?>')).toMatchObject([
+        { type: "text", contents: '<?xml version="1.0"?>' },
+      ]);
+    });
+
+    it("processing instruction does not swallow following markup", () => {
+      const tokens = parseTemplate('<?start name="rec"><p>a</p><?= x ?>');
+      expect(tokens).toMatchObject([
+        { type: "text", contents: '<?start name="rec"><p>a</p>' },
+        { type: "expr", contents: " x " },
+      ]);
+    });
+
+    it("js prefix requires a word boundary", () => {
+      expect(parseTemplate('<?json {"a":1} ?>')).toMatchObject([
+        { type: "text", contents: '<?json {"a":1} ?>' },
+      ]);
+    });
+
+    it("tag forms", () => {
+      expect(parseTemplate("<?=htmlspecialchars(x)?>")).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars(x)" },
+      ]);
+      expect(parseTemplate("<?js= x ?>")).toMatchObject([{ type: "expr", contents: " x " }]);
+      expect(parseTemplate("<?js x ?>")).toMatchObject([{ type: "code", contents: " x " }]);
+      expect(parseTemplate("<? for (const x of y) { ?>a<? } ?>")).toMatchObject([
+        { type: "code", contents: " for (const x of y) { " },
+        { type: "text", contents: "a" },
+        { type: "code", contents: " } " },
+      ]);
+      expect(parseTemplate("<?\n x\n?>")).toMatchObject([{ type: "code", contents: "\n x\n" }]);
+      expect(parseTemplate("<??>")).toMatchObject([{ type: "code", contents: "" }]);
     });
 
     it("mixed", () => {
