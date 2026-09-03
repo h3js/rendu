@@ -7,6 +7,9 @@ async function anonymous(__context__) {
   function htmlspecialchars(s) {
     return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c);
   }
+  function defer(value) {
+    return value;
+  }
   {
     const { name } = __context__;
     echo("Hello, ");

@@ -6,6 +6,13 @@ export type CompileTemplateOptions = {
   filename?: string;
   preserveLines?: boolean;
   contextKeys?: string[];
+  /**
+   * Emit a small client-side fallback for `defer()` patches so they also apply in
+   * browsers without native `<template for>` support. Streaming mode only.
+   *
+   * @default true
+   */
+  polyfill?: boolean;
 };
 
 export type CompiledTemplate<T> = (data: Record<string, any>) => Promise<T>;
@@ -146,7 +153,7 @@ export function compileTemplateToString(
     ? `{const {${opts.contextKeys.join(",")}}=__context__;${body}}`
     : `with(__context__){${body}}`;
 
-  body = opts.stream === false ? runtimeText(body) : runtimeStream(body);
+  body = opts.stream === false ? runtimeText(body) : runtimeStream(body, opts);
 
   return asyncWrapper === false ? body : `(async (__context__) => {${body}})`;
 }

@@ -34,8 +34,8 @@ Converts template syntax to normalized `<?...?>` tags, then tokenizes:
 
 Inlined JS code (not imported at runtime). Two variants:
 
-- **`runtimeStream`**: Collects chunks, returns `ReadableStream` with `concatStreams()`
-- **`runtimeText`**: Collects chunks, awaits promises, concatenates to string
+- **`runtimeStream`**: Collects chunks, returns `ReadableStream` with `concatStreams()`, then flushes `defer()`red values out of order as `<template for>` patches (spec transcribed in [`.agents/html-template-for.md`](./.agents/html-template-for.md))
+- **`runtimeText`**: Collects chunks, awaits promises, concatenates to string (`defer()` renders in place)
 
 Handles: strings, functions, Promises, Response objects, ReadableStreams, Uint8Arrays
 
@@ -75,8 +75,17 @@ Tests are in `test/` using vitest:
 
 - `test/parser.test.ts` — Tokenizer tests for all syntax variants
 - `test/compiler.test.ts` — End-to-end compile + render tests with snapshot comparisons (formatted via `oxfmt`)
+- `test/defer.test.ts` — Out-of-order streaming: marker emission, completion-order flushing, text-mode fallback
+- `test/polyfill.test.ts` — The client `<template for>` fallback, against a happy-dom document
 
 Snapshots live in `test/snapshots/`.
+
+## References
+
+- [`.agents/html-template-for.md`](./.agents/html-template-for.md) — the `<template for>` /
+  processing instruction spec that `defer()` targets, transcribed from
+  [whatwg/html#11818](https://github.com/whatwg/html/pull/11818). Read this before touching
+  marker emission in `_runtime.ts` or the `<?` handling in `parser.ts`.
 
 ## Template Syntax Reference
 
@@ -90,4 +99,4 @@ Snapshots live in `test/snapshots/`.
 
 ## Context Variables
 
-`$REQUEST`, `$METHOD`, `$URL`, `$HEADERS`, `$COOKIES`, `$RESPONSE`, `htmlspecialchars()`, `setCookie()`, `redirect()`, `echo()`
+`$REQUEST`, `$METHOD`, `$URL`, `$HEADERS`, `$COOKIES`, `$RESPONSE`, `htmlspecialchars()`, `setCookie()`, `redirect()`, `echo()`, `defer()`
