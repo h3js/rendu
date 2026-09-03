@@ -27,7 +27,7 @@
     "test:types": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
-    "srvx": "^1.0.0"
+    "srvx": "^1.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.9.5",

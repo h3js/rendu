@@ -4,4 +4,4 @@ allowBuilds:
   "@parcel/watcher": false
 minimumReleaseAgeExclude:
   - obuild@0.4.39
-  - srvx@1.0.0
+  - srvx@1.0.1
