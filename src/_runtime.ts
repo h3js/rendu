@@ -20,19 +20,28 @@ export type RuntimeHelper = keyof typeof runtimeHelpers;
 
 /**
  * Build the prelude for a compiled template body, only including the optional helpers
- * that the body references (a simple word match, a false positive only costs an unused
- * helper). `exclude` lists helpers that are provided by the context instead.
+ * that the body references (a false positive only costs an unused helper). `exclude` lists
+ * helpers that are provided by the context instead.
  */
 export function runtimePrelude(body: string, exclude: Iterable<string> = []): string {
   const excluded = new Set(exclude);
   const helpers: string[] = [runtimeHelpers.echo];
-  // Note: helper names must be plain identifiers for the `\b` word match to work.
   for (const [name, code] of Object.entries(runtimeHelpers)) {
-    if (name !== "echo" && !excluded.has(name) && new RegExp(`\\b${name}\\b`).test(body)) {
+    if (name !== "echo" && !excluded.has(name) && referencesIdentifier(body, name)) {
       helpers.push(code);
     }
   }
   return helpers.join(" ") + "\n";
+}
+
+/**
+ * Whether the code contains `name` as a standalone identifier (a simple match, a false
+ * positive from a string literal or comment is possible).
+ */
+export function referencesIdentifier(code: string, name: string): boolean {
+  const escaped = name.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&");
+  // Not part of a longer identifier or a property access (`obj.name`, but `...name` is).
+  return new RegExp(`(?<![\\w$])(?<!(?<!\\.)\\.)${escaped}(?![\\w$])`).test(code);
 }
 
 export function runtimeStream(body: string, exclude?: Iterable<string>) {

@@ -10,6 +10,7 @@ src/
   compiler.ts   # Token[] → async function body string → AsyncFunction
   _runtime.ts   # Inlined JS runtime for echo/stream/text concatenation
   render.ts     # Request/response layer: cookies, headers, redirects, HTML escaping
+  module.ts     # compileTemplateToModule(): ESM codegen importing only used context helpers
   cli.ts        # CLI entry: serves static files with srvx, renders .html as templates
   index.ts      # Public API re-exports
 ```
@@ -48,6 +49,11 @@ Handles: strings, functions, Promises, Response objects, ReadableStreams, Uint8A
 
 - `createRenderContext()`: Builds context with `$REQUEST`, `$URL`, `$COOKIES` (lazy-parsed via Proxy), `setCookie`, `redirect`, `htmlspecialchars`
 - `renderToResponse()`: Executes compiled template with context, returns `FastResponse`
+- `renderContextToResponse()` + `createRenderResponse/createRenderURL/createRenderCookies/createSetCookie/createRedirect`: individually importable pieces so unused helpers (e.g. `cookie-es`) tree-shake
+
+### Module (`module.ts`)
+
+`compileTemplateToModule()` generates an ES module (build-time, e.g. Nitro) exporting `async render(request, context)`. Built-in context helpers and custom `providers` (`{ import: { from, name }, value }`) are only imported/created when template code (not text) references them. Imports are aliased (`__rendu_N__`), emitted last (constant `preserveLines` offset) and re-bound inside the render function. Generated modules always use `contextKeys` destructuring.
 
 ### CLI (`cli.ts`)
 

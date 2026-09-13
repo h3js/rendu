@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileTemplateToModule > matches snapshot 1`] = `
+"export async function render(request, context) {
+  const createRenderCookies = __rendu_2__;
+  const createRedirect = __rendu_3__;
+  const $RESPONSE = __rendu_1__();
+  return __rendu_0__(__rendu_template__, {
+    ...context,
+    $COOKIES: createRenderCookies(request),
+    redirect: createRedirect($RESPONSE),
+    $RESPONSE,
+  });
+}
+import { renderContextToResponse as __rendu_0__, createRenderResponse as __rendu_1__, createRenderCookies as __rendu_2__, createRedirect as __rendu_3__ } from "rendu";
+"
+`;
