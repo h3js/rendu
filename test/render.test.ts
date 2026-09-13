@@ -171,5 +171,79 @@ describe("render", () => {
       expect(response.status).toBe(418);
       expect(await response.text()).toBe("raw");
     });
+
+    it("applies context headers and cookies to a Response returned by the template", async () => {
+      const template = compileTemplate(
+        `<? setCookie("a", "1"); $RESPONSE.headers.set("x-a", "ctx"); $RESPONSE.headers.set("x-b", "ctx"); redirect("/other") ?>` +
+          `<? return new Response("raw", { status: 418, headers: { "x-a": "own", "set-cookie": "b=2" } }) ?>`,
+        { stream: false },
+      );
+      const response = await renderToResponse(template, { request: request() });
+      expect(response.status).toBe(418);
+      expect(response.headers.get("content-type")).toBe("text/plain;charset=UTF-8");
+      expect(response.headers.get("x-a")).toBe("own");
+      expect(response.headers.get("x-b")).toBe("ctx");
+      expect(response.headers.get("location")).toBe("/other");
+      expect(response.headers.getSetCookie()).toEqual(["b=2", "a=1"]);
+      expect(await response.text()).toBe("raw");
+    });
+
+    it("applies context cookies to a returned Response with immutable headers", async () => {
+      const template = compileTemplate(
+        `<? setCookie("a", "1"); return Response.redirect("http://localhost/next", 307) ?>`,
+        { stream: true },
+      );
+      const response = await renderToResponse(template, { request: request() });
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe("http://localhost/next");
+      expect(response.headers.getSetCookie()).toEqual(["a=1"]);
+    });
+
+    it("does not leak context cookies across requests into a shared returned Response", async () => {
+      const shared = new Response(null, { status: 404 });
+      const template = compileTemplate(`<? setCookie("sid", sid); return shared ?>`, {
+        stream: false,
+      });
+      const render = (sid: string) =>
+        renderToResponse(template, { request: request(), context: { shared, sid } });
+      expect((await render("user1")).headers.getSetCookie()).toEqual(["sid=user1"]);
+      const second = await render("user2");
+      expect(second.status).toBe(404);
+      expect(second.headers.getSetCookie()).toEqual(["sid=user2"]);
+      expect([...shared.headers]).toEqual([]);
+    });
+
+    it("applies a Content-Type set on purpose but not the default one", async () => {
+      const plain = new Response(null, { status: 204 });
+      const render = (code: string) =>
+        renderToResponse(compileTemplate(code, { stream: false }), {
+          request: request(),
+          context: { plain },
+        });
+      const untouched = await render(`<? return plain ?>`);
+      expect(untouched).toBe(plain);
+      expect(untouched.headers.has("content-type")).toBe(false);
+      const json = await render(
+        `<? $RESPONSE.headers.set("content-type", "application/json"); return plain ?>`,
+      );
+      expect(json.status).toBe(204);
+      expect(json.headers.get("content-type")).toBe("application/json");
+      expect(plain.headers.has("content-type")).toBe(false);
+    });
+
+    it.each([
+      ["Response.error()", () => Response.error()],
+      ["a 101 response", () => Object.defineProperty(new Response(), "status", { value: 101 })],
+    ])("returns %s unchanged instead of re-wrapping it", async (_, create) => {
+      const returned = create();
+      const template = compileTemplate(`<? setCookie("a", "1"); return returned ?>`, {
+        stream: false,
+      });
+      const response = await renderToResponse(template, {
+        request: request(),
+        context: { returned },
+      });
+      expect(response).toBe(returned);
+    });
   });
 });

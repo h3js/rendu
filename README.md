@@ -305,6 +305,8 @@ Use `redirect()` function to redirect the user:
 
 `redirect(url, status = 302)` only sets the status and `Location` header (percent-encoding non-ASCII characters and spaces); like in PHP, the rest of the template still runs, so `return` after it to skip rendering the page.
 
+A template can also `return` its own `Response` (e.g. `<? return Response.json(data) ?>`). Its status and headers win, but headers from `setCookie()`, `redirect()` (only `Location`, not the status) and `$RESPONSE.headers` that it does not set itself are added to it, and cookies are appended.
+
 > [!NOTE]
 > In streaming mode, the status and headers are sent as soon as the template code has run, without waiting for echoed functions, promises, streams or deferred values. `setCookie()` and `redirect()` cannot reliably take effect from inside one of them (e.g. a `.then(...)` callback or an echoed function like `<?= () => { redirect("/login") } ?>`) and may throw; `await` the value in template code instead (`<? const user = await getUser() ?>`) and call them there.
 

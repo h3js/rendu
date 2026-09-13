@@ -9,6 +9,8 @@ export interface RenderOptions {
   context?: Record<string, unknown>;
 }
 
+const DEFAULT_CONTENT_TYPE = "text/html; charset=utf-8";
+
 /** Prepared responses whose head has already been handed to the server. */
 const committed = new WeakSet<object>();
 
@@ -47,7 +49,8 @@ export async function renderContextToResponse(
 ): Promise<Response> {
   const body = await htmlTemplate(ctx);
   if (body instanceof Response) {
-    return body;
+    committed.add(ctx.$RESPONSE);
+    return mergeResponseHeaders(body, ctx.$RESPONSE.headers);
   }
   const response = new FastResponse(body, {
     status: ctx.$RESPONSE.status,
@@ -61,6 +64,34 @@ export async function renderContextToResponse(
   // stream.)
   committed.add(ctx.$RESPONSE);
   return response;
+}
+
+/**
+ * Apply headers prepared via the context (`setCookie()`, `redirect()`, `$RESPONSE.headers`) to a
+ * Response returned by the template. Its own status and headers win (so `redirect()` only adds
+ * `Location`), except `Set-Cookie`, which is appended. The untouched default `Content-Type` is
+ * skipped since it does not describe the returned body.
+ */
+function mergeResponseHeaders(response: Response, prepared: Headers): Response {
+  const extra: [string, string][] = [];
+  for (const [name, value] of prepared) {
+    if (name === "set-cookie" || !response.headers.has(name)) {
+      if (name !== "content-type" || value !== DEFAULT_CONTENT_TYPE) extra.push([name, value]);
+    }
+  }
+  // Nothing to add, or a status a new Response cannot be created with (`Response.error()`, 101).
+  if (extra.length === 0 || response.status < 200 || response.status > 599) {
+    return response;
+  }
+  // Never mutate the returned Response: it may be immutable (`fetch()`, `Response.redirect()`) or
+  // shared across requests. Re-wrap it without reading the body instead.
+  const headers = new Headers(response.headers);
+  for (const [name, value] of extra) headers.append(name, value);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /** A prepared render context, as accepted by `renderContextToResponse`. */
@@ -122,7 +153,7 @@ export function createRenderResponse(): RenderResponse {
     status: 200,
     // Empty (like `new Response()`) so a changed `status` never goes out as e.g. `404 OK`.
     statusText: "",
-    headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
+    headers: new Headers({ "Content-Type": DEFAULT_CONTENT_TYPE }),
   };
 }
 
