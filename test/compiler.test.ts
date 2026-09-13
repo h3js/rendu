@@ -48,6 +48,17 @@ describe("compileTemplater", () => {
       );
     });
 
+    it("lets template declarations shadow context keys", async () => {
+      const template =
+        "<? const name = 'local' ?><? function greet() { return 'hi' } ?>{{ greet() }} {{ name }}";
+      for (const stream of [false, true]) {
+        const fn = compileTemplate(template, { stream, contextKeys: ["name", "greet"] });
+        expect(await new Response(await fn({ name: "ctx", greet: () => "ctx" })).text()).toBe(
+          "hi local",
+        );
+      }
+    });
+
     it("separates statements between tags", async () => {
       const cases = {
         "a<? // note ?>": "a",

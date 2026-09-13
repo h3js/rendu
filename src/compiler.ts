@@ -149,9 +149,10 @@ export function compileTemplateToString(
   let body: string = parts.join(preserveLines ? "" : "\n");
 
   // Note: the body is always wrapped in a block so context bindings shadow
-  // (instead of colliding with) the runtime prelude declarations.
+  // (instead of colliding with) the runtime prelude declarations. With `contextKeys`, the
+  // body gets its own nested block so template declarations shadow the context bindings.
   body = opts.contextKeys
-    ? `{const {${opts.contextKeys.join(",")}}=__context__;${body}}`
+    ? `{const {${opts.contextKeys.join(",")}}=__context__;{${body}}}`
     : `with(__context__){${body}}`;
 
   // Runtime helpers are only inlined when the body references them. Helpers that are

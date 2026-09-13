@@ -10,9 +10,11 @@ async function anonymous(__context__) {
   };
   {
     const { name } = __context__;
-    echo("Hello, ");
-    if (name) echo(await name);
-    else echo("Guest");
+    {
+      echo("Hello, ");
+      if (name) echo(await name);
+      else echo("Guest");
+    }
   }
   var __render__ = (function () {
     function e(e) {

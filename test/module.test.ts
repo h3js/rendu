@@ -72,9 +72,24 @@ describe("compileTemplateToModule", () => {
     expect(await res.text()).toBe("&lt;b&gt;");
   });
 
+  it("supports unicode context keys", async () => {
+    const { render } = await load("{{ café }} {{ ünï }}", {
+      contextKeys: ["café"],
+      providers: { ünï: { value: `"code"` } },
+    });
+    expect(await (await render(request(), { café: "au lait" })).text()).toBe("au lait code");
+  });
+
   it("supports a default export", async () => {
     const { render } = await load("ok", { exportName: "default" });
     expect(await (await render(request())).text()).toBe("ok");
+  });
+
+  it("lets template declarations shadow context helpers", async () => {
+    const { render } = await load(
+      `<? const redirect = 1 ?><? function setCookie() { return 2 } ?>{{ redirect }} {{ setCookie() }}`,
+    );
+    expect(await (await render(request())).text()).toBe("1 2");
   });
 
   it("validates names", () => {
@@ -89,6 +104,15 @@ describe("compileTemplateToModule", () => {
     ).toThrow(/Invalid import name/);
     expect(() => compileTemplateToModule("<?= a ?>", { providers: { a: {} } })).toThrow(
       /needs an import or a value/,
+    );
+    expect(() => compileTemplateToModule("", { exportName: "class" })).toThrow(
+      /Invalid export name/,
+    );
+    expect(() => compileTemplateToModule("", { providers: { default: { value: "1" } } })).toThrow(
+      /Invalid context provider key/,
+    );
+    expect(() => compileTemplateToModule("", { contextKeys: ["let"] })).toThrow(
+      /Invalid context key/,
     );
   });
 
@@ -117,6 +141,17 @@ describe("compileTemplateToModule", () => {
         providers,
       });
       expect(await (await render(request())).text()).toBe("undefined undefined");
+    });
+
+    it("binds default imports to the context key", async () => {
+      const lib = toDataURL(`export default (p) => "lib:" + p;`);
+      const { render } = await load(`{{ lib("a") }} {{ $LIB }}`, {
+        providers: {
+          lib: { import: { from: lib, name: "default" } },
+          $LIB: { import: { from: lib, name: "default" }, value: `$LIB("b")` },
+        },
+      });
+      expect(await (await render(request())).text()).toBe("lib:a lib:b");
     });
 
     it("can override built-in providers", async () => {
