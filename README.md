@@ -198,6 +198,18 @@ Use the `echo()` function for streaming content. Accepts: strings, functions, Pr
 </script>
 ```
 
+`echo()` must be called **synchronously**: from the template itself, or from a function that is being rendered (a function passed to `echo()` or `defer()`), in which case its output goes in place, right before the function's return value. After an `await` inside such a function, or from a timer, there is no longer a position in the output to write to, so `echo()` throws — return the content from the function instead (rendu cannot tell who calls `echo()` while the template body itself is still awaiting, so such a call is written at the body's current position, not detected):
+
+```html
+<script server>
+  echo(async () => {
+    echo("<h2>Posts</h2>"); // OK: synchronous, written in place
+    const posts = await getPosts();
+    return renderPosts(posts); // not echo(renderPosts(posts)), which would throw
+  });
+</script>
+```
+
 ### Deferred (Out-of-Order) Streaming
 
 `echo()` streams strictly in source order, so one slow value holds up everything after it. Use `defer()` to stream that value **out of order**: a marker is written in place immediately, the rest of the document keeps streaming, and the content is patched in when it resolves.
@@ -240,16 +252,16 @@ This is the standard [`<template for>`](https://github.com/whatwg/html/pull/1181
 > [!IMPORTANT]
 > No browser ships `<template for>` on by default yet (Chrome has it behind _Experimental Web Platform Features_; Gecko and WebKit are still open). The inline fallback is therefore what actually applies the patches today, so `compileTemplate(html, { polyfill: false })` means deferred content **never appears at all** — not "appears late". The same is true with JavaScript disabled, or for crawlers that do not execute scripts: they see the placeholder and the real content stays inside an inert `<template>`. Under a `script-src` policy that forbids inline scripts, prefer relaxing the policy for these scripts over turning the fallback off.
 
-Failure is per-panel, not per-page. If a deferred value rejects, its patch is skipped, the error is logged server-side, the placeholder stays in place, and the rest of the document — including every other panel — keeps streaming. That matches `<template for>`, where a failed patch is silent by design; there is no status code left to fail with once the head and shell are on the wire.
+Failure is per-panel, not per-page. If a deferred value rejects (or a deferred stream fails before it streams anything), its patch is skipped, the error is logged server-side, the placeholder stays in place, and the rest of the document — including every other panel — keeps streaming. If a deferred stream fails part-way through, the part it already streamed is applied (replacing the placeholder) and the error is logged; rendu closes whatever that truncated HTML left open — a tag, an attribute value, a comment, a `<script>` — so the patch still ends there and the panels after it are unaffected. That matches `<template for>`, where a failed patch is silent by design; there is no status code left to fail with once the head and shell are on the wire.
 
-For the same reason, `setCookie()` and `redirect()` throw if they are called from inside a deferred value: the response head has already been sent.
+For the same reason, `setCookie()` and `redirect()` throw if they are called from inside a deferred value: the response head has already been sent. Likewise `echo()` throws when a deferred function calls it after an `await` (see [Streaming Content](#streaming-content)), so that output cannot land in another panel's patch; that fails only this panel. What a deferred function echoes synchronously is written in place (before the marker, or into its patch when it is called at flush time).
 
-Two limitations worth knowing:
+Two things worth knowing:
 
-- A deferred value must not contain an unbalanced `</template>`; rendu escapes those so a value cannot break out of its own patch, which means a **nested `<template>` element inside a deferred value is not supported**.
-- Do not embed one `defer()`'s return value inside another `defer()`'s value. The inner marker only reaches the document when the outer patch is applied, by which time the inner patch has already gone out; rendu logs an error when it detects this. Call `defer()` from _inside_ the deferred value instead.
+- A deferred value cannot break out of its own patch: a `</template>` that would close it (one that does not close a `<template>` the value opened itself) is escaped and rendered as text, and so is `<plaintext>`, which nothing could close. Balanced nested `<template>` elements, and `</template>` inside an attribute value, a comment or a `<script>`, pass through unchanged. Inside `<svg>` / `<math>`, rendu still treats `<script>`, `<style>` and `<title>` as raw text the way HTML does, so keep a `</template>` or an unclosed `<!--` out of those.
+- Deferred values can nest: a `defer()` marker inside another deferred value (a string, stream, `Response` or function result, at any depth) works whichever of the two settles first. rendu holds each patch back until its marker has been written, so the inner patch always goes out after the outer patch that contains its marker; siblings keep streaming in the meantime. A marker that is never written as markup (not echoed, or escaped with `{{ }}`) cannot be patched: its patch still goes out once nothing else can write the marker, so the response always completes.
 
-In non-streaming mode (`{ stream: false }`) there is no stream to reorder, so `defer()` renders the value in place and the placeholder is dropped.
+In non-streaming mode (`{ stream: false }`) there is no stream to reorder, so `defer()` renders the value in place and the placeholder is dropped. A deferred value that fails (including through a late `echo()`) rejects the render.
 
 ### Global Variables
 

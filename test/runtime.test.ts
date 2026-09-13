@@ -133,6 +133,69 @@ describe("runtime", () => {
     });
   });
 
+  describe("echo() timing", () => {
+    const lateEcho = /echo\(\) must be called synchronously/;
+
+    it("writes a function chunk's synchronous echoes in place, in both modes", async () => {
+      // The output loop calls `h` after the body has ended: what it echoes goes right before
+      // its result, not to the end of the output.
+      const template =
+        `<?js const h = () => { echo("x"); echo(() => { echo("n"); return "m" }); return "y" } ?>` +
+        `<p><?= h ?></p><end>`;
+      expect(await renderText(template)).toBe("<p>xnmy</p><end>");
+      expect(await renderStream(template)).toBe("<p>xnmy</p><end>");
+    });
+
+    it("writes the synchronous echoes of an async function chunk before its result", async () => {
+      const template = `<p><?= async () => { echo("a"); await null; return "b" } ?></p><end>`;
+      expect(await renderText(template)).toBe("<p>ab</p><end>");
+      expect(await renderStream(template)).toBe("<p>ab</p><end>");
+    });
+
+    it("rejects with a function chunk's rejection after its echoes are written", async () => {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      try {
+        // The slow echoed value keeps the rejected result waiting to be written.
+        const template = `<?js const fn = () => { echo(slow()); return Promise.reject(new Error("boom")) } ?><?= fn ?>`;
+        const slow = () => new Promise((r) => setTimeout(() => r("a"), 20));
+        await expect(renderText(template, { slow })).rejects.toThrow("boom");
+        await expect(renderStream(template, { slow })).rejects.toThrow("boom");
+        await new Promise((r) => setTimeout(r, 10));
+        expect(unhandled).toEqual([]);
+      } finally {
+        process.off("unhandledRejection", onUnhandled);
+      }
+    });
+
+    it("throws when echo() is called after the body has ended", async () => {
+      // A timer (or anything after an await) cannot be tied to a position in the output.
+      for (const render of [renderText, renderStream]) {
+        const errors: unknown[] = [];
+        const later = (fn: () => void) =>
+          setTimeout(() => {
+            try {
+              fn();
+            } catch (error) {
+              errors.push(error);
+            }
+          }, 0);
+        expect(await render(`<a><?js later(() => echo("late")) ?></a>`, { later })).toBe("<a></a>");
+        await new Promise((r) => setTimeout(r, 10));
+        expect(errors).toEqual([
+          expect.objectContaining({ message: expect.stringMatching(lateEcho) }),
+        ]);
+      }
+    });
+
+    it("throws when an async function chunk echoes after an await", async () => {
+      const template = `<p><?= async () => { await null; echo("late"); return "b" } ?></p>`;
+      await expect(renderText(template)).rejects.toThrow(lateEcho);
+      await expect(renderStream(template)).rejects.toThrow(lateEcho);
+    });
+  });
+
   describe("htmlspecialchars", () => {
     it("is available without a render context", async () => {
       expect(await renderText("{{ title }}", { title: `<b>"x" & 'y'</b>` })).toBe(

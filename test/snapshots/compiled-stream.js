@@ -1,55 +1,45 @@
 async function anonymous(__context__) {
   const __chunks__ = [];
+  let __sink__ = __chunks__;
   const echo = (chunk) => {
-    __chunks__.push(chunk);
+    if (!__sink__)
+      throw new Error(
+        "echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.",
+      );
+    __sink__.push(chunk);
   };
   with (__context__) {
     echo("Hello, ");
     if (name) echo(await name);
     else echo("Guest");
   }
-  function concatStreams(chunks, deferred) {
+  function concatStreams(chunks) {
     const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
     let activeReader;
-    const openReaders = new Set();
     let cancelled = false;
     return new ReadableStream({
       async pull(controller) {
-        let inPatch = false;
-        let patchTail = "";
-        const guard = (text) => {
-          text = patchTail + text;
-          patchTail = "";
-          const i = text.lastIndexOf("<");
-          if (
-            i >= 0 &&
-            text.length - i < 10 &&
-            "<\/template".startsWith(text.slice(i).toLowerCase())
-          ) {
-            patchTail = text.slice(i);
-            text = text.slice(0, i);
-          }
-          return text.replace(/<\/template/gi, "&lt;/template");
-        };
         const enqueue = (value) => {
           if (cancelled) return;
-          if (inPatch) {
-            const text =
-              typeof value === "string"
-                ? value
-                : ArrayBuffer.isView(value)
-                  ? decoder.decode(value, { stream: true })
-                  : String(value);
-            const guarded = guard(text);
-            if (guarded) controller.enqueue(encoder.encode(guarded));
-            return;
-          }
           controller.enqueue(ArrayBuffer.isView(value) ? value : encoder.encode(String(value)));
         };
         const write = async (chunk) => {
           if (typeof chunk === "function") {
-            chunk = chunk();
+            const echoed = (__sink__ = []);
+            try {
+              chunk = chunk();
+            } finally {
+              __sink__ = undefined;
+            }
+            if (echoed.length > 0) {
+              if (typeof chunk?.then === "function") {
+                chunk.then(undefined, () => {});
+              }
+              for (const part of echoed) {
+                if (cancelled) return;
+                await write(part);
+              }
+            }
           }
           if (typeof chunk?.then === "function") {
             chunk = await chunk;
@@ -78,105 +68,11 @@ async function anonymous(__context__) {
             enqueue(chunk);
           }
         };
-        const drain = async (reader, first) => {
-          activeReader = reader;
-          try {
-            for (let r = first; !r.done; r = await reader.read()) {
-              if (cancelled) return;
-              enqueue(r.value);
-            }
-          } finally {
-            activeReader = undefined;
-            openReaders.delete(reader);
-            reader.releaseLock();
-          }
-        };
 
         for (const chunk of chunks) {
           if (cancelled) return;
           await write(chunk);
         }
-
-        let index = 0;
-        let chunkIndex = chunks.length;
-        let helperSent = false;
-        const pending = new Map();
-        const flushed = new Set();
-        const track = () => {
-          while (index < deferred.length) {
-            const entry = deferred[index++];
-            pending.set(entry, entry.settled);
-          }
-        };
-        track();
-        while (pending.size > 0) {
-          if (cancelled) return;
-          let settled = await Promise.race(pending.values());
-          pending.delete(settled.entry);
-          if (cancelled) return;
-          if (!settled.failed && settled.reader === undefined) {
-            const body = settled.value instanceof Response ? settled.value.body : settled.value;
-            if (body instanceof ReadableStream && pending.size > 0) {
-              const reader = body.getReader();
-              openReaders.add(reader);
-              pending.set(
-                settled.entry,
-                reader.read().then(
-                  (first) => ({ entry: settled.entry, reader, first }),
-                  (error) => ({ entry: settled.entry, error, failed: true }),
-                ),
-              );
-              continue;
-            }
-          }
-          if (settled.failed) {
-            console.error(
-              "[rendu] deferred value " + settled.entry.name + " failed:",
-              settled.error,
-            );
-            track();
-            continue;
-          }
-          if (typeof settled.value === "string" && settled.value.includes("<?")) {
-            for (const m of settled.value.matchAll(/<\?(?:marker|start) name="([^"]+)"/g)) {
-              if (flushed.has(m[1])) {
-                console.error(
-                  "[rendu] the defer() marker " +
-                    m[1] +
-                    " is nested inside the patch for " +
-                    settled.entry.name +
-                    ", so its patch was flushed before the marker reached the document and its content is dropped. Call defer() from inside the deferred value instead of embedding its marker in another one.",
-                );
-              }
-            }
-          }
-          if (!helperSent) {
-            helperSent = true;
-            enqueue(
-              '<script>window.__renduPatch=(typeof HTMLTemplateElement!=="undefined"&&"htmlFor" in HTMLTemplateElement.prototype)?function(){}:function(){var t=document.currentScript&&document.currentScript.previousElementSibling;\nif(!t||t.tagName!=="TEMPLATE"||!t.hasAttribute("for"))return;\ntry{\n  var name=t.getAttribute("for");\n  if(!name)return;\n  var data=function(n){return n.target?"?"+n.target+" "+n.data:n.data};\n  var w=document.createTreeWalker(document,192),n,m,start=null,end=null;\n  while((n=w.nextNode())){\n    m=/^\\?(marker|start)\\s+name=["\']?([^"\'\\s?>]+)/.exec(data(n));\n    if(m&&m[2]===name){start=n;if(m[1]==="marker")end=n;break;}\n  }\n  if(!start)return;\n  if(end!==start){\n    for(var s=start.nextSibling,depth=0,d;s;s=s.nextSibling){\n      if(s.nodeType!==7&&s.nodeType!==8)continue;\n      d=data(s);\n      if(/^\\?start\\b/.test(d))depth++;\n      else if(/^\\?end\\b/.test(d)){if(depth===0){end=s;break;}depth--;}\n    }\n  }\n  var parent=start.parentNode;\n  if(!parent)return;\n  if(end!==start){\n    for(var c=start.nextSibling,nx;c&&c!==end;c=nx){nx=c.nextSibling;parent.removeChild(c);}\n  }\n  parent.insertBefore(t.content,end||null);\n  if(end&&end!==start)parent.removeChild(end);\n  parent.removeChild(start);\n}finally{\n  t.remove();\n}};<\/script>',
-            );
-          }
-          enqueue('<template for="' + settled.entry.name + '">');
-          inPatch = true;
-          try {
-            await (settled.reader ? drain(settled.reader, settled.first) : write(settled.value));
-            while (chunkIndex < chunks.length) {
-              await write(chunks[chunkIndex++]);
-            }
-          } catch (error) {
-            console.error("[rendu] deferred value " + settled.entry.name + " failed:", error);
-          } finally {
-            const rest = (cancelled ? "" : decoder.decode()) + patchTail;
-            patchTail = "";
-            inPatch = false;
-            if (rest) enqueue(rest);
-            enqueue("</template>");
-            flushed.add(settled.entry.name);
-          }
-          enqueue("<script>__renduPatch()<\/script>");
-          track();
-        }
-
         if (cancelled) return;
         controller.close();
       },
@@ -184,21 +80,10 @@ async function anonymous(__context__) {
         cancelled = true;
         const reader = activeReader;
         activeReader = undefined;
-        for (const reader of openReaders) reader.cancel(reason).catch(() => {});
-        openReaders.clear();
-        for (const entry of deferred) {
-          entry.settled?.then(
-            (settled) => {
-              const body = settled.value instanceof Response ? settled.value.body : settled.value;
-              if (body instanceof ReadableStream && !body.locked)
-                body.cancel(reason).catch(() => {});
-            },
-            () => {},
-          );
-        }
         return reader?.cancel(reason);
       },
     });
   }
-  return concatStreams(__chunks__, []);
+  __sink__ = undefined;
+  return concatStreams(__chunks__);
 }

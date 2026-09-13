@@ -36,6 +36,17 @@ describe("compileTemplater", () => {
         "snapshots/compiled-stream.js",
       );
     });
+
+    it("compileTemplates to a function (stream, defer)", async () => {
+      const template = "Hello, <?= defer(name, '<i>Guest</i>') ?>!";
+      const fn = compileTemplate(template, { stream: true });
+      expect(await new Response(await fn({ name: Promise.resolve("JS") })).text()).toMatch(
+        /^Hello, <\?start name="(d[a-z\d]{6}_0)"><i>Guest<\/i><\?end>!<script>window\.__renduPatch=[\s\S]*<\/script><template for="\1">JS<\/template><script>__renduPatch\(\)<\/script>$/,
+      );
+      await expect((await format("test.js", fn.toString())).code).toMatchFileSnapshot(
+        "snapshots/compiled-stream-defer.js",
+      );
+    });
   });
 });
 

@@ -40,6 +40,7 @@
     "obuild": "^0.4.39",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
+    "parse5": "^8.0.1",
     "rendu": "link:*",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"

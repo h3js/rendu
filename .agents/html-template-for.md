@@ -336,7 +336,9 @@ Not part of the spec — a pointer for anyone changing the implementation.
 - `concatStreams()` flushes queued values in **completion order** as
   `<template for="dN">…</template>` after the shell, so a slow patch never blocks a fast one.
 - The marker always precedes its template in the byte stream, which **find markers**
-  requires.
+  requires. For a marker nested in another deferred value, that means after the patch that
+  carries it: the flush loop scans written output for marker names and holds a patch back
+  until its marker has gone out (see `deferScan` / `deferFlush` in `src/_defer.ts`).
 - Patches are emitted after `</body></html>`; per "after after body" that is a parse error
   processed with the in-body rules, so _scope_ is the body element and is widened to `html`
   — which is also what would allow patching `head`.
