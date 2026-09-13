@@ -169,6 +169,31 @@ describe("parser", () => {
       }
     });
 
+    it("script server closing tag forms", () => {
+      for (const close of [
+        "</script >",
+        "</SCRIPT>",
+        "</script\n>",
+        "</script/>",
+        "</script foo>",
+      ]) {
+        expect(parseTemplate(`<script server>const x = 1;${close}hi`)).toMatchObject([
+          { type: "code", contents: "const x = 1;" },
+          { type: "text", contents: "hi" },
+        ]);
+      }
+    });
+
+    it("unclosed script server throws instead of rendering code as text", () => {
+      for (const template of [
+        '<script server>const secret = "k"',
+        '<p>a</p><script server>const secret = "k"</scripts>',
+      ]) {
+        expect(hasTemplateSyntax(template)).toBe(true);
+        expect(() => parseTemplate(template)).toThrow("Unclosed <script server> tag");
+      }
+    });
+
     it("curly tags inside script server are left as code", () => {
       const tokens = parseTemplate('<script server>const t = "{{name}}";</script><?= t ?>');
       expect(tokens).toMatchObject([

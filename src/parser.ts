@@ -22,8 +22,15 @@ const attr = String.raw`[^\s"'>/=]+(?:\s*=\s*${attrValue})?`;
  */
 const scriptServerOpen = String.raw`<script(?:\s+(?!server(?![^\s"'>/=]))${attr})*\s+server(?:\s*=\s*${attrValue})?(?=[\s/>])(?:\s+${attr})*\s*\/?>`;
 
+/**
+ * A `</script>` closing tag. Like HTML, `</script` followed by whitespace or `/` also
+ * closes up to the next `>` (`</script >`, `</script\n>`, `</script/>`).
+ */
+const scriptClose = String.raw`<\/script(?:[\s/][^<>]*)?>`;
+
+/** A `<script server>` block, up to its closing tag or the end of the template (unclosed). */
 const scriptServerRe = /* @__PURE__ */ new RegExp(
-  `${scriptServerOpen}([\\s\\S]*?)<\\/script>`,
+  `${scriptServerOpen}([\\s\\S]*?)(?:(${scriptClose})|$)`,
   "gi",
 );
 
@@ -40,7 +47,7 @@ const tagRe = /<\?(?:js(?![\w-])|(?=[\s?=]))(?<equals>=)?(?<value>[\s\S]*?)\?>/g
 const curlyRe = /{{{\s*([\s\S]+?)\s*}}}|{{\s*([\s\S]+?)\s*}}/g;
 
 const templateSyntaxRe = /* @__PURE__ */ new RegExp(
-  `(?:${scriptServerOpen}[\\s\\S]*?<\\/script>)|(?:${tagRe.source})|(?:\\{\\{[\\s\\S]*?\\}\\})`,
+  `(?:${scriptServerOpen})|(?:${tagRe.source})|(?:\\{\\{[\\s\\S]*?\\}\\})`,
   "i",
 );
 
@@ -58,6 +65,10 @@ export function parseTemplate(template: string): Token[] {
   let match;
   scriptServerRe.lastIndex = 0;
   while ((match = scriptServerRe.exec(template))) {
+    if (!match[2]) {
+      // Never render server code as page text.
+      throw new SyntaxError("Unclosed <script server> tag: missing </script>");
+    }
     if (match.index > cursor) {
       pushTagTokens(tokens, template.slice(cursor, match.index));
     }
