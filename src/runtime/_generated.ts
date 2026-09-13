@@ -3,7 +3,7 @@
 
 /** `echo()` from `prelude.ts` (always inlined) */
 export const echo =
-  "const __chunks__=[];let __sink__=__chunks__;const echo=e=>{if(!__sink__)throw Error(`echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`);__sink__.push(e)};";
+  "const __chunks__=[];let __sink__=__chunks__;const echo=e=>{if(!__sink__)throw Error(`echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`);e instanceof Promise&&e.then(void 0,()=>{}),__sink__.push(e)};";
 
 /** `htmlspecialchars()` from `prelude.ts` */
 export const htmlspecialchars =
@@ -15,7 +15,7 @@ export const deferStream =
 
 /** `defer()` from `text.ts` */
 export const deferText =
-  "function defer(e){return async()=>__render__([await(typeof e==`function`?e():e)])};";
+  "function defer(e){return e instanceof Promise&&e.then(void 0,()=>{}),async()=>__render__([await(typeof e==`function`?e():e)])};";
 
 /** `stream.ts` */
 export const stream =

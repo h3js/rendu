@@ -15,6 +15,11 @@
  * happens to be. (Without AsyncContext, a call from another async function while the body itself
  * is suspended in an `await` cannot be told apart from the body's own calls, so it is written at
  * the body's current position.)
+ *
+ * A promise chunk is only awaited when the runtime reaches it, after the body has ended and the
+ * chunks before it are written (or never, if the body throws), so it gets a rejection handler
+ * right away (awaiting it later still throws): otherwise its rejection would be unhandled in the
+ * meantime.
  */
 
 const __chunks__: unknown[] = [];
@@ -26,6 +31,9 @@ const echo = (chunk: unknown): void => {
     throw new Error(
       "echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.",
     );
+  }
+  if (chunk instanceof Promise) {
+    chunk.then(undefined, () => {});
   }
   __sink__.push(chunk);
 };

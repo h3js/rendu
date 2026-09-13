@@ -6,7 +6,7 @@ async function anonymous(__context__) {
       throw Error(
         `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
       );
-    __sink__.push(e);
+    (e instanceof Promise && e.then(void 0, () => {}), __sink__.push(e));
   };
   const __deferred__ = [];
   let __deferSeq__ = 0;

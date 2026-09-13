@@ -131,6 +131,36 @@ describe("runtime", () => {
         "fnthen",
       );
     });
+
+    it("does not leave an echoed promise's early rejection unhandled", async () => {
+      // A promise is only awaited once the chunks before it are written (or never, when the
+      // body throws), so Node's default --unhandled-rejections=throw would terminate the process.
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      try {
+        const context = {
+          slow: () => new Promise((r) => setTimeout(() => r("slow"), 20)),
+          after: (ms: number) => new Promise((r) => setTimeout(r, ms)),
+        };
+        const template = `A<?= slow() ?>B<?= Promise.reject(new Error("boom")) ?>`;
+        await expect(renderText(template, context)).rejects.toThrow("boom");
+        await expect(renderStream(template, context)).rejects.toThrow("boom");
+        await expect(
+          renderText(
+            `<?js const d = defer(Promise.reject(new Error("boom"))); await after(20) ?><?= d ?>`,
+            context,
+          ),
+        ).rejects.toThrow("boom");
+        const throwing = `<?= Promise.reject(new Error("boom")) ?><?js throw new Error("body") ?>`;
+        await expect(renderText(throwing, context)).rejects.toThrow("body");
+        await expect(renderStream(throwing, context)).rejects.toThrow("body");
+        await new Promise((r) => setTimeout(r, 10));
+        expect(unhandled).toEqual([]);
+      } finally {
+        process.off("unhandledRejection", onUnhandled);
+      }
+    });
   });
 
   describe("echo() timing", () => {

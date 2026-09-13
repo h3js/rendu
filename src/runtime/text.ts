@@ -64,6 +64,9 @@ export default async function render(chunks: unknown[]): Promise<string> {
  * patch would: a function value is called (while the output loop calls the returned function,
  * so what it echoes synchronously lands in place, see `prelude.ts`), and a function it resolves to
  * is rendered as a function chunk too, like `write()` does at flush time.
+ *
+ * A promise value is only awaited when the returned function is rendered, so it gets a rejection
+ * handler right away (see `echo()` in `prelude.ts`).
  */
 
 /**
@@ -73,5 +76,8 @@ export default async function render(chunks: unknown[]): Promise<string> {
 declare const __render__: (chunks: unknown[]) => Promise<string>;
 
 export function defer(value: unknown): () => Promise<string> {
+  if (value instanceof Promise) {
+    value.then(undefined, () => {});
+  }
   return async () => __render__([await (typeof value === "function" ? value() : value)]);
 }
