@@ -144,6 +144,17 @@ describe("preserveLines", () => {
     expect(await expr({})).toBe("2TEXT");
   });
 
+  it("renders curly expressions with nested braces and line comments", async () => {
+    const template =
+      "{{ JSON.stringify({ a: { b: x } }) // note }}|{{{ x // raw }}}\n<p>{{ x }}</p>";
+    for (const preserveLines of [false, true]) {
+      const fn = compileTemplate(template, { stream: false, preserveLines });
+      expect(await fn({ x: "<" })).toBe(
+        "{&quot;a&quot;:{&quot;b&quot;:&quot;&lt;&quot;}}|<\n<p>&lt;</p>",
+      );
+    }
+  });
+
   it("keeps template lines aligned with generated lines", async () => {
     const filename = "align.html";
     const throwLine = async (template: string, opts = {}) => {

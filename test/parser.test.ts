@@ -87,6 +87,89 @@ describe("parser", () => {
       expect(tokens).toMatchObject([{ type: "expr", contents: "a ?\n  b : c" }]);
     });
 
+    it("curly expressions with nested braces, strings and template literals", () => {
+      for (const [template, contents] of [
+        [
+          "{{ JSON.stringify({ a: { b: 1 } }) }}",
+          "htmlspecialchars(JSON.stringify({ a: { b: 1 } }))",
+        ],
+        ["{{{ JSON.stringify({a:{b:1}})}}}", "JSON.stringify({a:{b:1}})"],
+        ["{{ {a:1}.a}}", "htmlspecialchars({a:1}.a)"],
+        ["{{{{ a }}}}", "{ a }"],
+        ["{{ \"}}\" + '}}}' }}", "htmlspecialchars(\"}}\" + '}}}')"],
+        ["{{ `${ { a: '}}' }.a }}}` }}", "htmlspecialchars(`${ { a: '}}' }.a }}}`)"],
+        ["{{ s.replace(/[}']/g, '') }}", "htmlspecialchars(s.replace(/[}']/g, ''))"],
+        ["{{ a / b }}", "htmlspecialchars(a / b)"],
+        ["{{ a++ / 2 + b-- / 2 }}", "htmlspecialchars(a++ / 2 + b-- / 2)"],
+        ["{{ a + +/}}/.test(b) }}", "htmlspecialchars(a + +/}}/.test(b))"],
+        ["{{ a /* }} */ }}", "htmlspecialchars(a /* }} */)"],
+        [
+          "{{ '\\'}}' + `\\`}}` + /\\/}}/.source }}",
+          "htmlspecialchars('\\'}}' + `\\`}}` + /\\/}}/.source)",
+        ],
+      ]) {
+        expect(parseTemplate(`<p>${template}</p>`)).toMatchObject([
+          { type: "text", contents: "<p>" },
+          { type: "expr", contents },
+          { type: "text", contents: "</p>" },
+        ]);
+      }
+    });
+
+    it("curly expressions drop line comments", () => {
+      expect(parseTemplate("{{ x // note }}!")).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars(x )" },
+        { type: "text", contents: "!" },
+      ]);
+      expect(parseTemplate("{{{ x // it's {\n + y // }} }}}!")).toMatchObject([
+        { type: "expr", contents: "x \n + y " },
+        { type: "text", contents: "!" },
+      ]);
+      for (const lt of ["\r", "\r\n", "\u2028", "\u2029"]) {
+        expect(parseTemplate(`{{ x // a${lt} + y }}`)).toMatchObject([
+          { type: "expr", contents: `htmlspecialchars(x ${lt} + y)` },
+        ]);
+      }
+      expect(parseTemplate("{{ x // a\n// b\n}}")).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars(x \n)" },
+      ]);
+    });
+
+    it("unclosed or unbalanced curly tags fall back to the first closer", () => {
+      expect(parseTemplate("a {{ b")).toMatchObject([{ type: "text", contents: "a {{ b" }]);
+      expect(parseTemplate("{{}} {{{}}}")).toMatchObject([
+        { type: "text", contents: "{{}} {{{}}}" },
+      ]);
+      expect(parseTemplate("{{ x { }} {{ y }}")).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars(x {)" },
+        { type: "text", contents: " " },
+        { type: "expr", contents: "htmlspecialchars(y)" },
+      ]);
+      // `{{{` without any `}}}` reads as `{{` + `{...`
+      expect(parseTemplate("{{{a}} b")).toMatchObject([
+        { type: "expr", contents: "htmlspecialchars({a)" },
+        { type: "text", contents: " b" },
+      ]);
+    });
+
+    it("curly tags parse in linear time", () => {
+      const start = performance.now();
+      for (const template of [
+        "{{{" + " ".repeat(100_000),
+        ("{{" + " ".repeat(200)).repeat(500),
+        "{{ { }} ".repeat(20_000),
+        "{{{a}} ".repeat(20_000),
+        "{{ ' ".repeat(20_000),
+        "{{ x }}".repeat(20_000),
+      ]) {
+        parseTemplate(template);
+        hasTemplateSyntax(template);
+      }
+      expect(hasTemplateSyntax("{{".repeat(200_000))).toBe(false);
+      // Each of these took seconds to minutes with the previous backtracking regexes.
+      expect(performance.now() - start).toBeLessThan(1000);
+    });
+
     it("code", () => {
       const tokens = parseTemplate("<?js if (true) { ?>123<?js } ?>");
       expect(tokens).toMatchObject([
