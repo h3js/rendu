@@ -30,7 +30,20 @@ export async function renderToResponse(
   htmlTemplate: CompiledTemplate<any>,
   opts: RenderOptions,
 ): Promise<Response> {
-  const ctx = createRenderContext(opts);
+  return renderContextToResponse(htmlTemplate, createRenderContext(opts));
+}
+
+/**
+ * Renders an HTML template with a prepared context (that must contain `$RESPONSE`) to a
+ * Response object.
+ *
+ * Unlike `renderToResponse`, it does not create the render context, so only the context
+ * helpers that are actually imported end up in the bundle (see `compileTemplateToModule`).
+ */
+export async function renderContextToResponse(
+  htmlTemplate: CompiledTemplate<any>,
+  ctx: RenderContextInput,
+): Promise<Response> {
   const body = await htmlTemplate(ctx);
   if (body instanceof Response) {
     return body;
@@ -47,6 +60,15 @@ export async function renderToResponse(
   return response;
 }
 
+/** A prepared render context, as accepted by `renderContextToResponse`. */
+export type RenderContextInput = { $RESPONSE: RenderResponse } & Record<string, unknown>;
+
+export type RenderResponse = {
+  status: number;
+  statusText: string;
+  headers: Headers;
+};
+
 export type RenderContext = {
   htmlspecialchars: (s: string) => string;
   setCookie: (name: string, value: string, options?: CookieSerializeOptions) => void;
@@ -56,11 +78,7 @@ export type RenderContext = {
   $URL?: URL;
   $HEADERS?: Headers;
   $COOKIES: Readonly<Record<string, string>>;
-  $RESPONSE: {
-    status: number;
-    statusText: string;
-    headers: Headers;
-  };
+  $RESPONSE: RenderResponse;
 };
 
 export const RENDER_CONTEXT_KEYS = [
@@ -76,59 +94,86 @@ export const RENDER_CONTEXT_KEYS = [
 ] as const;
 
 export function createRenderContext(options: RenderOptions): RenderContext {
-  // URL
-  const url = new URL(options.request?.url || "http://_");
-
-  // Prepared response
-  const response = {
-    status: 200,
-    statusText: "OK",
-    headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
-  };
-
-  // Cookies
-  const $COOKIES = lazyCookies(options.request);
-  const assertOpen = (what: string) => {
-    if (committed.has(response)) {
-      throw new Error(
-        `${what}() was called after the response head was sent. Move it out of the deferred ` +
-          `value: only the body can still be written once defer() has started streaming.`,
-      );
-    }
-  };
-  const setCookie = (name: string, value: string, sOpts: CookieSerializeOptions = {}) => {
-    assertOpen("setCookie");
-    response.headers.append("Set-Cookie", serializeCookie(name, value, sOpts));
-  };
-
-  // Redirect
-  const redirect = (to: string, status = 302) => {
-    assertOpen("redirect");
-    response.status = status;
-    response.headers.set("Location", to);
-  };
-
+  const response = createRenderResponse();
   return {
     ...options.context,
     htmlspecialchars,
-    setCookie,
-    redirect,
+    setCookie: createSetCookie(response),
+    redirect: createRedirect(response),
     $REQUEST: options.request,
     $METHOD: options.request?.method,
-    $URL: url,
+    $URL: createRenderURL(options.request),
     $HEADERS: options.request?.headers,
-    $COOKIES,
+    $COOKIES: createRenderCookies(options.request),
     $RESPONSE: response,
   };
 }
 
 /**
- * A lazily parsed, read-only view of the request cookies.
+ * Create the prepared response state (`$RESPONSE`).
+ *
+ * **Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+ */
+export function createRenderResponse(): RenderResponse {
+  return {
+    status: 200,
+    statusText: "OK",
+    headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
+  };
+}
+
+/**
+ * Create the `$URL` context value.
+ *
+ * **Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+ */
+export function createRenderURL(request: Request | undefined): URL {
+  return new URL(request?.url || "http://_");
+}
+
+/**
+ * Create the `setCookie()` context helper.
+ *
+ * **Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+ */
+export function createSetCookie(response: RenderResponse): RenderContext["setCookie"] {
+  return (name, value, options = {}) => {
+    assertOpen(response, "setCookie");
+    response.headers.append("Set-Cookie", serializeCookie(name, value, options));
+  };
+}
+
+/**
+ * Create the `redirect()` context helper.
+ *
+ * **Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+ */
+export function createRedirect(response: RenderResponse): RenderContext["redirect"] {
+  return (to, status = 302) => {
+    assertOpen(response, "redirect");
+    response.status = status;
+    response.headers.set("Location", to);
+  };
+}
+
+function assertOpen(response: RenderResponse, what: string): void {
+  if (committed.has(response)) {
+    throw new Error(
+      `${what}() was called after the response head was sent. Move it out of the deferred ` +
+        `value: only the body can still be written once defer() has started streaming.`,
+    );
+  }
+}
+
+/**
+ * Create the `$COOKIES` context value: a lazily parsed, read-only view of the request cookies.
+ *
+ * **Note:** Low-level building block for generated code (see `compileTemplateToModule`).
  *
  * The cookie header is only parsed on first access. All traps are backed by the parsed
  * map so `get`, `in`, `Object.keys()`, spread and `JSON.stringify()` are consistent.
  */
-function lazyCookies(req: Request | undefined): Readonly<Record<string, string>> {
+export function createRenderCookies(req: Request | undefined): Readonly<Record<string, string>> {
   let parsed: Record<string, string> | undefined;
   const cookies = (): Record<string, string> => {
     parsed ??= req ? (parseCookies(req.headers.get("cookie") || "") as Record<string, string>) : {};

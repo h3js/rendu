@@ -10,7 +10,10 @@ export type Token = {
  */
 const scriptServerOpen = String.raw`<script(?=[^>]*\sserver(?![\w-]))[^>]*>`;
 
-const scriptServerRe = new RegExp(`${scriptServerOpen}([\\s\\S]*?)<\\/script>`, "gi");
+const scriptServerRe = /* @__PURE__ */ new RegExp(
+  `${scriptServerOpen}([\\s\\S]*?)<\\/script>`,
+  "gi",
+);
 
 /**
  * A rendu tag: `<?= expr ?>`, `<?js code ?>` / `<?js= expr ?>` (with `js` not part of a
@@ -24,7 +27,7 @@ const tagRe = /<\?(?:js(?![\w-])|(?=[\s?=]))(?<equals>=)?(?<value>[\s\S]*?)\?>/g
 /** `{{{ raw }}}` and `{{ escaped }}` output tags, only expanded within text. */
 const curlyRe = /{{{\s*([\s\S]+?)\s*}}}|{{\s*([\s\S]+?)\s*}}/g;
 
-const templateSyntaxRe = new RegExp(
+const templateSyntaxRe = /* @__PURE__ */ new RegExp(
   `(?:${scriptServerOpen}[\\s\\S]*?<\\/script>)|(?:${tagRe.source})|(?:\\{\\{[\\s\\S]*?\\}\\})`,
   "i",
 );

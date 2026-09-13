@@ -1,20 +1,22 @@
-// Shared prelude injected before the compiled template body.
-// Provides `echo()` (chunk collector), `defer()` (out-of-order streaming) and an
-// inlined `htmlspecialchars()` so that compiled templates can be rendered without
-// a render context.
-// `htmlspecialchars` is declared as a function declaration (function scoped) so
-// a `const { htmlspecialchars } = __context__` inside the (block scoped) body
-// shadows it instead of colliding with it.
-function prelude(defer: string) {
-  return /* js */ `const __chunks__ = [];
-const echo = (chunk) => { __chunks__.push(chunk); };
-const __htmlEscapes__ = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-function htmlspecialchars(s) {
-  return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c);
-}
-${defer}
-`;
-}
+/**
+ * Runtime helpers that can be inlined before the compiled template body.
+ *
+ * Each helper is a self-contained, single line snippet so the prelude always spans
+ * exactly one line no matter which helpers are included (keeps `preserveLines`
+ * line offsets constant). `echo` is always required, the other helpers are only
+ * injected when the compiled body references them (see `runtimePrelude`).
+ *
+ * `htmlspecialchars` is declared as a function declaration (function scoped) so a
+ * `const { htmlspecialchars } = __context__` inside the (block scoped) body shadows
+ * it instead of colliding with it.
+ */
+// oxfmt-ignore
+export const runtimeHelpers = {
+  echo: /* js */ `const __chunks__ = []; const echo = (chunk) => { __chunks__.push(chunk); };`,
+  htmlspecialchars: /* js */ `const __htmlEscapes__ = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }; function htmlspecialchars(s) { return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c); }`,
+} as const;
+
+export type RuntimeHelper = keyof typeof runtimeHelpers;
 
 /**
  * `defer()` for streaming mode.
@@ -22,40 +24,71 @@ ${defer}
  * Emits an HTML processing instruction marker in place and queues the value to be
  * flushed later as `<template for>`, so slow content does not block the rest of the
  * document. See <https://github.com/whatwg/html/pull/11818>.
+ *
+ * - Marker names carry per-render entropy. `<template for>` matches the *first* marker of
+ *   a given name in tree order, so two renders composed into one document (echo() of another
+ *   rendu stream, a docs page that shows a literal marker) would otherwise patch each other.
+ * - The value is settled in `defer()` rather than at flush time, for two reasons: the
+ *   rejection handler is attached while the value is still fresh (attaching it later leaves
+ *   a window in which a rejection is unhandled, which terminates the process under Node's
+ *   default), and a function is invoked now so its work starts immediately and the
+ *   completion race sees the real duration instead of the thunk.
+ * - Any falsy placeholder means "no placeholder": `defer(v, cond && skeleton())` must not
+ *   render the literal text "false".
  */
-const deferStream = /* js */ `const __deferred__ = [];
-let __deferSeq__ = 0;
-// Marker names carry per-render entropy. \`<template for>\` matches the *first* marker of
-// a given name in tree order, so two renders composed into one document (echo() of another
-// rendu stream, a docs page that shows a literal marker) would otherwise patch each other.
-const __deferId__ = "d" + Math.random().toString(36).slice(2, 8) + "_";
-function defer(value, placeholder) {
-  const name = __deferId__ + (__deferSeq__++);
-  const entry = { name, settled: undefined };
-  // Settled here rather than at flush time, for two reasons: the rejection handler is
-  // attached while the value is still fresh (attaching it later leaves a window in which
-  // a rejection is unhandled, which terminates the process under Node's default), and a
-  // function is invoked now so its work starts immediately and the completion race sees
-  // the real duration instead of the thunk.
-  entry.settled = (async () => (typeof value === "function" ? value() : value))().then(
-    (value) => ({ entry, value }),
-    (error) => ({ entry, error, failed: true }),
-  );
-  __deferred__.push(entry);
-  // Any falsy placeholder means "no placeholder": \`defer(v, cond && skeleton())\` must not
-  // render the literal text "false".
-  return placeholder
-    ? '<?start name="' + name + '">' + placeholder + '<?end>'
-    : '<?marker name="' + name + '">';
-}`;
+// oxfmt-ignore
+const deferStream = /* js */ `const __deferred__ = []; let __deferSeq__ = 0; const __deferId__ = "d" + Math.random().toString(36).slice(2, 8) + "_"; function defer(value, placeholder) { const name = __deferId__ + (__deferSeq__++); const entry = { name, settled: undefined }; entry.settled = (async () => (typeof value === "function" ? value() : value))().then((value) => ({ entry, value }), (error) => ({ entry, error, failed: true })); __deferred__.push(entry); return placeholder ? '<?start name="' + name + '">' + placeholder + '<?end>' : '<?marker name="' + name + '">'; }`;
 
 /**
  * `defer()` for text mode: there is no stream to reorder, so the value is rendered
  * in place (and the placeholder, which only exists to be replaced, is dropped).
  */
-const deferText = /* js */ `function defer(value) {
-  return value;
-}`;
+const deferText = /* js */ `function defer(value) { return value; }`;
+
+const streamHelpers = { ...runtimeHelpers, defer: deferStream };
+const textHelpers = { ...runtimeHelpers, defer: deferText };
+
+/**
+ * Names of the helpers to inline for a compiled template body: `echo` always, the others
+ * only when the body references them (a false positive only costs an unused helper) and
+ * they are not in `exclude` (helpers that are provided by the context instead).
+ */
+function usedHelpers(
+  body: string,
+  exclude: Iterable<string> = [],
+  helpers: Record<string, string> = runtimeHelpers,
+): string[] {
+  const excluded = new Set(exclude);
+  return Object.keys(helpers).filter(
+    (name) => name === "echo" || (!excluded.has(name) && referencesIdentifier(body, name)),
+  );
+}
+
+/**
+ * Build the prelude for a compiled template body, only including the optional helpers
+ * that the body references. `exclude` lists helpers that are provided by the context instead.
+ */
+export function runtimePrelude(
+  body: string,
+  exclude?: Iterable<string>,
+  helpers: Record<string, string> = runtimeHelpers,
+): string {
+  return (
+    usedHelpers(body, exclude, helpers)
+      .map((name) => helpers[name])
+      .join(" ") + "\n"
+  );
+}
+
+/**
+ * Whether the code contains `name` as a standalone identifier (a simple match, a false
+ * positive from a string literal or comment is possible).
+ */
+export function referencesIdentifier(code: string, name: string): boolean {
+  const escaped = name.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&");
+  // Not part of a longer identifier or a property access (`obj.name`, but `...name` is).
+  return new RegExp(`(?<![\\w$])(?<!(?<!\\.)\\.)${escaped}(?![\\w$])`).test(code);
+}
 
 /**
  * Client fallback for browsers without `<template for>` support.
@@ -133,8 +166,12 @@ export type RuntimeOptions = {
   polyfill?: boolean;
 };
 
-export function runtimeStream(body: string, opts: RuntimeOptions = {}) {
+export function runtimeStream(body: string, exclude?: Iterable<string>, opts: RuntimeOptions = {}) {
   const polyfill = opts.polyfill !== false;
+  // Without an inlined `defer()` nothing can be queued, so the flush loop gets an empty list.
+  const deferred = usedHelpers(body, exclude, streamHelpers).includes("defer")
+    ? "__deferred__"
+    : "[]";
   // Emitted only when the fallback is enabled, so the generated code carries no
   // dead `if (false)` branch.
   const helperOnce = /* js */ `        if (!helperSent) {
@@ -144,7 +181,7 @@ export function runtimeStream(body: string, opts: RuntimeOptions = {}) {
 `;
   const sentinel = /* js */ `        enqueue(${patchSentinelLiteral});
 `;
-  return /* js */ `${prelude(deferStream)}${body};
+  return /* js */ `${runtimePrelude(body, exclude, streamHelpers)}${body};
 function concatStreams(chunks, deferred) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
@@ -330,12 +367,12 @@ ${polyfill ? sentinel : ""}        track();
     },
   });
 }
-return concatStreams(__chunks__, __deferred__);
+return concatStreams(__chunks__, ${deferred});
 `;
 }
 
-export function runtimeText(body: string) {
-  return /* js */ `${prelude(deferText)}${body};
+export function runtimeText(body: string, exclude?: Iterable<string>) {
+  return /* js */ `${runtimePrelude(body, exclude, textHelpers)}${body};
 let __out__ = "";
 for (let chunk of __chunks__) {
   if (typeof chunk === 'function') {

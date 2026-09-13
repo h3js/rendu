@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileTemplate } from "../src/compiler.ts";
+import { runtimeHelpers } from "../src/_runtime.ts";
 import { format } from "oxfmt";
 
 describe("compileTemplater", () => {
@@ -35,6 +36,39 @@ describe("compileTemplater", () => {
         "snapshots/compiled-stream.js",
       );
     });
+  });
+});
+
+describe("runtime helpers", () => {
+  const usesHelper = (fn: { toString(): string }) =>
+    fn.toString().includes(runtimeHelpers.htmlspecialchars);
+
+  it("only inlines htmlspecialchars when used", async () => {
+    const plain = compileTemplate("Hello, <?= name ?>", { stream: false });
+    expect(usesHelper(plain)).toBe(false);
+    expect(await plain({ name: "<b>" })).toBe("Hello, <b>");
+
+    for (const template of ["Hello, {{ name }}", "Hello, <?= htmlspecialchars(name) ?>"]) {
+      for (const stream of [false, true]) {
+        const fn = compileTemplate(template, { stream });
+        expect(usesHelper(fn)).toBe(true);
+        const out = await fn({ name: "<b>" });
+        expect(await new Response(out).text()).toBe("Hello, &lt;b&gt;");
+      }
+    }
+  });
+
+  it("prefers htmlspecialchars from the context", async () => {
+    const custom = (s: string) => `[${s}]`;
+    const withMode = compileTemplate("{{ name }}", { stream: false });
+    expect(await withMode({ name: "x", htmlspecialchars: custom })).toBe("[x]");
+
+    const strict = compileTemplate("{{ name }}", {
+      stream: false,
+      contextKeys: ["name", "htmlspecialchars"],
+    });
+    expect(usesHelper(strict)).toBe(false);
+    expect(await strict({ name: "x", htmlspecialchars: custom })).toBe("[x]");
   });
 });
 

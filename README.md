@@ -50,13 +50,62 @@ console.log(html);
 // </ul>
 ```
 
+### `compileTemplateToModule(template, opts)`
+
+Compile a template string into an ES module code string exporting an async `render(request, context)` function that returns a Response.
+
+Only the render context helpers and `providers` referenced by the template code are imported, so unused helpers (and their dependencies, such as cookie utils) can be tree-shaken by bundlers.
+
+**Example:**
+
+```ts
+import { compileTemplateToModule } from "rendu";
+
+const code = compileTemplateToModule(`<h1>Hello {{ $URL.pathname }}</h1>`);
+// import { renderContextToResponse as __rendu_render__, ... } from "rendu";
+// ...
+// export async function render(request, context) { ... }
+```
+
 ### `compileTemplateToString(template, opts, asyncWrapper?)`
 
 Compile a template string into a render function code string.
 
 **Note:** This function is for advanced use cases where you need the generated code as a string.
 
+### `createRedirect(response)`
+
+Create the `redirect()` context helper.
+
+**Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+
 ### `createRenderContext(options)`
+
+### `createRenderCookies(req)`
+
+Create the `$COOKIES` context value: a lazily parsed, read-only view of the request cookies.
+
+**Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+
+The cookie header is only parsed on first access. All traps are backed by the parsed map so `get`, `in`, `Object.keys()`, spread and `JSON.stringify()` are consistent.
+
+### `createRenderResponse()`
+
+Create the prepared response state (`$RESPONSE`).
+
+**Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+
+### `createRenderURL(request)`
+
+Create the `$URL` context value.
+
+**Note:** Low-level building block for generated code (see `compileTemplateToModule`).
+
+### `createSetCookie(response)`
+
+Create the `setCookie()` context helper.
+
+**Note:** Low-level building block for generated code (see `compileTemplateToModule`).
 
 ### `hasTemplateSyntax(template)`
 
@@ -70,6 +119,12 @@ Parse a template string into `text`, `code` and `expr` tokens.
 
 - **Type**: `array`
 - **Default**: `["htmlspecialchars","setCookie","redirect","$REQUEST","$METHOD","$URL","$HEADERS","$COOKIES","$RESPONSE"]`
+
+### `renderContextToResponse(htmlTemplate, ctx)`
+
+Renders an HTML template with a prepared context (that must contain `$RESPONSE`) to a Response object.
+
+Unlike `renderToResponse`, it does not create the render context, so only the context helpers that are actually imported end up in the bundle (see `compileTemplateToModule`).
 
 ### `renderToResponse(htmlTemplate, opts)`
 

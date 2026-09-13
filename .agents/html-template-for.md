@@ -243,7 +243,7 @@ pseudo-attribute form, exposed through `getAttribute()` / `setAttribute()` /
 `hasAttributes()`.
 
 > To **get a processing instruction attribute**, given a `ProcessingInstruction` node _pi_
-> and a string _name_: return _pi_'s attribute map[*name*] with default null.
+> and a string _name_: return _pi_'s attribute map[_name_] with default null.
 
 ## Examples (verbatim from the spec)
 

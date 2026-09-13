@@ -11,6 +11,7 @@ src/
   _runtime.ts   # Inlined JS runtime: echo/stream/text concatenation, defer() and the
                 #   <template for> patch flush + client fallback
   render.ts     # Request/response layer: cookies, headers, redirects, HTML escaping
+  module.ts     # compileTemplateToModule(): ESM codegen importing only used context helpers
   cli.ts        # CLI entry: serves static files with srvx, renders .html as templates
   index.ts      # Public API re-exports
 ```
@@ -33,7 +34,13 @@ Converts template syntax to normalized `<?...?>` tags, then tokenizes:
 
 ### Runtime (`_runtime.ts`)
 
-Inlined JS code (not imported at runtime). Two variants:
+Inlined JS code (not imported at runtime).
+
+- **`runtimeHelpers`**: Table of single-line helper snippets (`echo`, `htmlspecialchars`)
+- **`runtimePrelude(body, exclude, helpers)`**: Always emits `echo`; other helpers are only emitted when the compiled body references them and they are not in `exclude` (the compiler passes `contextKeys`). The prelude is always one line so `preserveLines` offsets stay constant
+- **`defer`** is a mode-specific helper (streaming: queues a `<template for>` patch; text: renders in place), inlined like the others only when referenced. It is a single line too, so explain it in the TS comment, not inside the snippet
+
+Two variants:
 
 - **`runtimeStream`**: Collects chunks, returns `ReadableStream` with `concatStreams()`, then flushes `defer()`red values out of order as `<template for>` patches (spec transcribed in [`.agents/html-template-for.md`](./.agents/html-template-for.md))
 - **`runtimeText`**: Collects chunks, awaits promises, concatenates to string (`defer()` renders in place)
@@ -44,6 +51,11 @@ Handles: strings, functions, Promises, Response objects, ReadableStreams, Uint8A
 
 - `createRenderContext()`: Builds context with `$REQUEST`, `$URL`, `$COOKIES` (lazy-parsed via Proxy), `setCookie`, `redirect`, `htmlspecialchars`
 - `renderToResponse()`: Executes compiled template with context, returns `FastResponse`
+- `renderContextToResponse()` + `createRenderResponse/createRenderURL/createRenderCookies/createSetCookie/createRedirect`: individually importable pieces so unused helpers (e.g. `cookie-es`) tree-shake
+
+### Module (`module.ts`)
+
+`compileTemplateToModule()` generates an ES module (build-time, e.g. Nitro) exporting `async render(request, context)`. Built-in context helpers and custom `providers` (`{ import: { from, name }, value }`) are only imported/created when template code (not text) references them. Imports are aliased (`__rendu_N__`), emitted last (constant `preserveLines` offset) and re-bound inside the render function. Generated modules always use `contextKeys` destructuring.
 
 ### CLI (`cli.ts`)
 

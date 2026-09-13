@@ -3,35 +3,6 @@ async function anonymous(__context__) {
   const echo = (chunk) => {
     __chunks__.push(chunk);
   };
-  const __htmlEscapes__ = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  function htmlspecialchars(s) {
-    return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c);
-  }
-  const __deferred__ = [];
-  let __deferSeq__ = 0;
-  // Marker names carry per-render entropy. `<template for>` matches the *first* marker of
-  // a given name in tree order, so two renders composed into one document (echo() of another
-  // rendu stream, a docs page that shows a literal marker) would otherwise patch each other.
-  const __deferId__ = "d" + Math.random().toString(36).slice(2, 8) + "_";
-  function defer(value, placeholder) {
-    const name = __deferId__ + __deferSeq__++;
-    const entry = { name, settled: undefined };
-    // Settled here rather than at flush time, for two reasons: the rejection handler is
-    // attached while the value is still fresh (attaching it later leaves a window in which
-    // a rejection is unhandled, which terminates the process under Node's default), and a
-    // function is invoked now so its work starts immediately and the completion race sees
-    // the real duration instead of the thunk.
-    entry.settled = (async () => (typeof value === "function" ? value() : value))().then(
-      (value) => ({ entry, value }),
-      (error) => ({ entry, error, failed: true }),
-    );
-    __deferred__.push(entry);
-    // Any falsy placeholder means "no placeholder": `defer(v, cond && skeleton())` must not
-    // render the literal text "false".
-    return placeholder
-      ? '<?start name="' + name + '">' + placeholder + "<?end>"
-      : '<?marker name="' + name + '">';
-  }
   with (__context__) {
     echo("Hello, ");
     if (name) echo(await name);
@@ -253,5 +224,5 @@ async function anonymous(__context__) {
       },
     });
   }
-  return concatStreams(__chunks__, __deferred__);
+  return concatStreams(__chunks__, []);
 }
