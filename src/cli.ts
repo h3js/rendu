@@ -22,11 +22,19 @@ serve({
       async renderHTML({ request, html, filename }) {
         try {
           const htmlTemplate = compileTemplate(html, { filename });
-          return await renderToResponse(htmlTemplate, {
+          const response = await renderToResponse(htmlTemplate, {
             request,
             context: {
               $GLOBALS,
             },
+          });
+          if (!response.body) {
+            return response;
+          }
+          return new FastResponse(logStreamErrors(response.body), {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
           });
         } catch (error) {
           console.error(error);
@@ -40,3 +48,31 @@ serve({
     return new FastResponse("Not Found", { status: 404 });
   },
 });
+
+/**
+ * Once the body is streaming, the status is already sent and a template error can only cut the
+ * response short: log it, or it would go unnoticed.
+ */
+function logStreamErrors(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      let result: ReadableStreamReadResult<Uint8Array>;
+      try {
+        result = await reader.read();
+      } catch (error) {
+        console.error(error);
+        controller.error(error);
+        return;
+      }
+      if (result.done) {
+        controller.close();
+      } else {
+        controller.enqueue(result.value);
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+}
