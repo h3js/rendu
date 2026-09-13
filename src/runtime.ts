@@ -86,9 +86,13 @@ export function runtimeStream(body: string, exclude?: Iterable<string>, opts: Ru
 }
 
 /**
- * Text runtime: renders the chunks in order into a string (`text.ts`). `defer()` renders in
- * place, as a function chunk so it matches the streamed output.
+ * Text runtime: renders the chunks in order into a string (`text.ts`). `defer()` returns a
+ * marker, as in streaming mode; only a template that inlines it gets the runtime that replaces
+ * the markers with the rendered values.
  */
 export function runtimeText(body: string, exclude?: Iterable<string>) {
-  return `${runtimePrelude(body, exclude, textHelpers)}${body};\n${generated.text}\n`;
+  const tail = usedHelpers(body, exclude, textHelpers).includes("defer")
+    ? generated.textDefer
+    : generated.text;
+  return `${runtimePrelude(body, exclude, textHelpers)}${body};\n${tail}\n`;
 }

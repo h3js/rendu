@@ -17,7 +17,12 @@ describe("generated runtime", () => {
     for (const prelude of [generated.deferStream, generated.deferText]) {
       expect(prelude).not.toMatch(/ReadableStream|TextDecoder|__renduPatch/);
     }
-    for (const runtime of [generated.streamDefer, generated.streamDeferPolyfill, generated.text]) {
+    for (const runtime of [
+      generated.streamDefer,
+      generated.streamDeferPolyfill,
+      generated.text,
+      generated.textDefer,
+    ]) {
       expect(runtime).not.toMatch(/Math\.random|__deferSeq__|function defer/);
     }
   });

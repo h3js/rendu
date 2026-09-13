@@ -444,9 +444,9 @@ describe("defer", () => {
   });
 
   it("writes a deferred function's synchronous echoes in place in both modes", async () => {
-    // Called by defer() in streaming mode (echoes go before the marker), by the output loop
-    // in text mode, and at flush time when a deferred value resolves to a function (echoes go
-    // into its patch): the same output either way, modulo patches.
+    // Called by defer() (echoes go before the marker), and at flush time when a deferred value
+    // resolves to a function (echoes go into its patch): the same output either way, modulo
+    // patches.
     const template =
       `<?js const h = () => { echo("x"); echo(() => { echo("n"); return "m" }); return "y" } ?>` +
       `<p><?= defer(h) ?></p><q><?= defer(Promise.resolve(h)) ?></q>`;
@@ -462,6 +462,29 @@ describe("defer", () => {
   it("renders deferred content in place in text mode", async () => {
     const fn = compileTemplate(`<a><?= defer(value, "<i>loading</i>") ?></a>`, { stream: false });
     expect(await fn({ value: Promise.resolve("<b>late</b>") })).toBe("<a><b>late</b></a>");
+  });
+
+  it("renders a marker concatenated into another deferred value in text mode", async () => {
+    // defer() returns a marker string in both modes, so the documented nesting pattern works.
+    const template =
+      `<?js const outer = async () => { const m = defer(after(10, "INNER")); return "<i>" + m + "</i>" };` +
+      ` const early = defer("EARLY"); ?><a><?= defer(outer) ?></a><b><?= defer(after(5, "<s>" + early + "</s>")) ?></b>`;
+    const fn = compileTemplate(template, { stream: false });
+    expect(await fn({ after })).toBe("<a><i>INNER</i></a><b><s>EARLY</s></b>");
+  });
+
+  it("calls a deferred function right away and rejects on failure in text mode", async () => {
+    const calls: string[] = [];
+    const fn = compileTemplate(
+      `<?js defer(() => { calls.push("called"); return "x" }) ?>ok<?js calls.push("body") ?>`,
+      { stream: false },
+    );
+    expect(await fn({ calls })).toBe("ok");
+    expect(calls).toEqual(["called", "body"]);
+    const failing = compileTemplate(`<?js defer(Promise.reject(new Error("nope"))) ?>ok`, {
+      stream: false,
+    });
+    await expect(failing({})).rejects.toThrow("nope");
   });
 
   it("emits no patch machinery when nothing is deferred", async () => {

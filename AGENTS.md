@@ -56,13 +56,13 @@ Seven files, grouped by what they inline. The generator builds each snippet from
 - **Prelude helpers** (`echo`, `htmlspecialchars`, `defer`): declarations in the template function scope, minified as a script (top-level names kept). Each is one line: the prelude always spans exactly one line so `preserveLines` offsets stay constant
 - **`runtimePrelude(body, exclude, helpers)`**: Always emits `echo`; other helpers are only emitted when the compiled body references them and they are not in `exclude` (the compiler passes `contextKeys`)
 - **Output runtimes** (default exports of `stream.ts`, `defer.ts`, `text.ts`): bundled as an IIFE bound to `concatStreams` / `__render__`; the generated code then clears `__sink__` and calls it with `__chunks__`, so everything else is private and mangled
-- **`defer`** is mode-specific (streaming: queues a `<template for>` patch; text: renders in place), inlined only when referenced. Only then does the stream use `defer.ts`'s runtime; a template without `defer()` gets the plain `stream.ts` — keep defer-only code out of it
+- **`defer`** is mode-specific (streaming: queues a `<template for>` patch; text: a marker replaced in place), inlined only when referenced. Only then does the stream use `defer.ts`'s runtime; a template without `defer()` gets the plain `stream.ts` — keep defer-only code out of it
 - **Client fallback** (`patch.ts`): minified into a `<script>` string and injected into `defer.ts` as `__PATCH_SCRIPT__`. The defer runtime is built twice, with `__POLYFILL__` on and off (the `polyfill` compile option picks one)
 
 Two variants:
 
 - **Streaming** (`runtimeStream`): Collects chunks, returns `ReadableStream` with `concatStreams()`, then flushes `defer()`red values out of order as `<template for>` patches (spec transcribed in [`.agents/html-template-for.md`](./.agents/html-template-for.md))
-- **Text** (`runtimeText`): Collects chunks, awaits promises, concatenates to string via `__render__()` (`defer()` renders in place, as a function chunk so it matches the streamed output)
+- **Text** (`runtimeText`): Collects chunks, awaits promises, concatenates to string via `__render__()` (`defer()` returns a marker, as in streaming mode, which the `textDefer` runtime replaces with the rendered value)
 
 Handles: strings, functions, Promises, Response objects, ReadableStreams, Uint8Arrays
 

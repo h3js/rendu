@@ -137,7 +137,10 @@ export async function generateRuntime(): Promise<string> {
       "`defer()` from `defer.ts`",
       await prelude("defer.ts", ["__deferred__", "__deferSeq__", "__deferId__", "defer"]),
     ],
-    deferText: ["`defer()` from `text.ts`", await prelude("text.ts", ["defer"])],
+    deferText: [
+      "`defer()` from `text.ts`",
+      await prelude("text.ts", ["__deferred__", "__deferSeq__", "__deferId__", "defer"]),
+    ],
     stream: ["`stream.ts`", await runtime("stream.ts", "concatStreams", "__chunks__")],
     streamDefer: [
       "`defer.ts` without the client fallback",
@@ -153,7 +156,14 @@ export async function generateRuntime(): Promise<string> {
         __PATCH_SCRIPT__: patch,
       }),
     ],
-    text: ["`text.ts`", await runtime("text.ts", "__render__", "__chunks__")],
+    text: [
+      "`text.ts` without `defer()`",
+      await runtime("text.ts", "__render__", "__chunks__", { __DEFER__: "false" }),
+    ],
+    textDefer: [
+      "`text.ts` with `defer()`",
+      await runtime("text.ts", "__render__", deferArgs, { __DEFER__: "true" }),
+    ],
   };
 
   let out =
