@@ -54,8 +54,10 @@ export async function renderContextToResponse(
     headers: ctx.$RESPONSE.headers,
   });
   // The head is on the wire from here on, so `setCookie()` / `redirect()` can no longer
-  // take effect. `defer()` makes running request work after this point routine, so say so
-  // loudly instead of mutating an already-serialized Headers object.
+  // take effect. In stream mode, echoed functions, promises, streams and deferred values still
+  // run request work after this point, so say so loudly instead of mutating an already-serialized
+  // Headers object. (Holding the head back until they settle would delay the first byte of every
+  // stream.)
   committed.add(ctx.$RESPONSE);
   return response;
 }
@@ -159,8 +161,10 @@ export function createRedirect(response: RenderResponse): RenderContext["redirec
 function assertOpen(response: RenderResponse, what: string): void {
   if (committed.has(response)) {
     throw new Error(
-      `${what}() was called after the response head was sent. Move it out of the deferred ` +
-        `value: only the body can still be written once defer() has started streaming.`,
+      `${what}() was called after the response head was sent. When streaming, the status and ` +
+        `headers are sent once the template code has run, before echoed functions, promises, ` +
+        `streams and deferred values are written: \`await\` the value in template code first ` +
+        `(\`<? const value = await ... ?>\`) and call ${what}() there.`,
     );
   }
 }

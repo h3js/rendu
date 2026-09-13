@@ -303,6 +303,9 @@ Use `redirect()` function to redirect the user:
 </script>
 ```
 
+> [!NOTE]
+> In streaming mode, the status and headers are sent as soon as the template code has run, without waiting for echoed functions, promises, streams or deferred values. `setCookie()` and `redirect()` cannot reliably take effect from inside one of them (e.g. a `.then(...)` callback or an echoed function like `<?= () => { redirect("/login") } ?>`) and may throw; `await` the value in template code instead (`<? const user = await getUser() ?>`) and call them there.
+
 ### HTML Escaping
 
 The `htmlspecialchars()` function is available for escaping HTML content:

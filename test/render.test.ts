@@ -118,6 +118,25 @@ describe("render", () => {
       expect(() => capturedRedirect!("/login")).toThrow(/after the response head was sent/);
     });
 
+    it.each([
+      [`<p>hi</p><?= getUser().then((u) => { if (!u) redirect("/login") }) ?>`],
+      [`<?= "a" ?><?= "b" ?><?= () => { redirect("/login"); return "x" } ?>`],
+    ])("explains the late head error without blaming defer(): %s", async (html) => {
+      const template = compileTemplate(html, { stream: true });
+      const response = await renderToResponse(template, {
+        request: request(),
+        context: { getUser: () => new Promise((r) => setTimeout(() => r(null), 5)) },
+      });
+      expect(response.status).toBe(200);
+      const error = await response.text().then(
+        () => undefined,
+        (error: Error) => error,
+      );
+      expect(error?.message).toMatch(/after the response head was sent/);
+      expect(error?.message).toMatch(/echoed functions, promises/);
+      expect(error?.message).not.toMatch(/defer\(\)/);
+    });
+
     it("passes a Response returned by the template through", async () => {
       const template = compileTemplate(`<? return new Response("raw", { status: 418 }) ?>`, {
         stream: false,
