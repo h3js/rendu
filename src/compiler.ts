@@ -1,5 +1,5 @@
 import { parseTemplate } from "./parser.ts";
-import { runtimeStream, runtimeText } from "./_runtime.ts";
+import { runtimeStream, runtimeText } from "./runtime.ts";
 
 export type CompileTemplateOptions = {
   stream?: boolean;

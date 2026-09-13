@@ -1,6 +1,6 @@
 import { compileTemplateToString, type CompileTemplateOptions } from "./compiler.ts";
 import { parseTemplate } from "./parser.ts";
-import { referencesIdentifier } from "./_runtime.ts";
+import { referencesIdentifier } from "./runtime.ts";
 import type { RENDER_CONTEXT_KEYS } from "./render.ts";
 
 export type CompileTemplateToModuleOptions = Omit<

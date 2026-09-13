@@ -1,495 +1,389 @@
 async function anonymous(__context__) {
   const __chunks__ = [];
   let __sink__ = __chunks__;
-  const echo = (chunk) => {
+  const echo = (e) => {
     if (!__sink__)
-      throw new Error(
-        "echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.",
+      throw Error(
+        `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
       );
-    __sink__.push(chunk);
+    __sink__.push(e);
   };
   const __deferred__ = [];
   let __deferSeq__ = 0;
-  const __deferId__ = "d" + Math.random().toString(36).slice(2, 8) + "_";
-  function defer(value, placeholder) {
-    const name = __deferId__ + __deferSeq__++;
-    const entry = { name, settled: undefined };
-    __deferred__.push(entry);
-    entry.settled = (async () => (typeof value === "function" ? value() : value))().then(
-      (value) => ({ entry, value }),
-      (error) => ({ entry, error, failed: true }),
+  const __deferId__ = `d` + Math.random().toString(36).slice(2, 8) + `_`;
+  function defer(e, t) {
+    let n = __deferId__ + __deferSeq__++,
+      r = { name: n, settled: void 0 };
+    return (
+      __deferred__.push(r),
+      (r.settled = (async () => (typeof e == `function` ? e() : e))().then(
+        (e) => ({ entry: r, value: e }),
+        (e) => ({ entry: r, error: e, failed: !0 }),
+      )),
+      t ? `<?start name="` + n + `">` + t + `<?end>` : `<?marker name="` + n + `">`
     );
-    return placeholder
-      ? '<?start name="' + name + '">' + placeholder + "<?end>"
-      : '<?marker name="' + name + '">';
   }
   with (__context__) {
     echo("Hello, ");
     echo(defer(name, "<i>Guest</i>"));
     echo("!");
   }
-  function concatStreams(chunks, deferred, deferId) {
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-    const openReaders = new Set();
-    let activeReader;
-    let cancelled = false;
-    return new ReadableStream({
-      async pull(controller) {
-        let patchTail = "";
-        let ps = "data";
-        let pAt = 0;
-        let pDepth = 0;
-        let pNoscript = 0;
-        let pName = "";
-        let pEnd = false;
-        let pRaw = "";
-        let pSub = 0;
-        let pDash = 0;
-        let pBuf = "";
-        const rawTextElements = [
-          "script",
-          "style",
-          "textarea",
-          "title",
-          "xmp",
-          "iframe",
-          "noembed",
-          "noframes",
-        ];
-        const tagEnd = () => {
-          ps = "data";
-          if (pName === "template") {
-            pDepth += pEnd ? -1 : 1;
-          } else if (pName === "noscript") {
-            pNoscript = Math.max(0, pNoscript + (pEnd ? -1 : 1));
-          } else if (!pEnd && rawTextElements.includes(pName)) {
-            ps = "raw";
-            pRaw = pName;
-            pSub = 0;
-            pDash = 0;
+  var concatStreams = (function () {
+    function e(e) {
+      return typeof e?.then == `function`;
+    }
+    function t(t) {
+      let n = (__sink__ = []),
+        r;
+      try {
+        r = t();
+      } finally {
+        __sink__ = void 0;
+      }
+      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
+    }
+    function n(n, r) {
+      let i = async (a) => {
+        if (typeof a == `function`) {
+          let [e, r] = t(a);
+          a = e;
+          for (let e of r) {
+            if (n.cancelled) return;
+            await i(e);
           }
-        };
-        const guard = (text) => {
-          text = patchTail + text;
-          patchTail = "";
-          let out = "";
-          let from = 0;
-          for (let i = 0; i < text.length; i++) {
-            const ch = text[i];
-            const code = text.charCodeAt(i);
-            const ws = code === 32 || code === 9 || code === 10 || code === 12 || code === 13;
-            const alpha = (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-            switch (ps) {
-              case "data":
-                i = text.indexOf("<", i);
-                if (i < 0) {
-                  i = text.length;
-                } else {
-                  ps = "lt";
-                  pAt = i;
-                  pName = "";
-                  pEnd = false;
-                }
-                break;
-              case "lt":
-                if (ch === "/") ps = "endlt";
-                else if (ch === "!") ps = "md";
-                else if (ch === "?") ps = "bogus";
-                else {
-                  ps = alpha ? "name" : "data";
-                  i--;
-                }
-                pEnd = ps === "endlt";
-                break;
-              case "endlt":
-                if (ch === ">") ps = "data";
-                else {
-                  ps = alpha ? "name" : "bogus";
-                  i--;
-                }
-                break;
-              case "name":
-                if (ws || ch === "/") {
-                  ps = "attr";
-                } else if (ch === ">") {
-                  tagEnd();
-                } else {
-                  if (pName.length < 10) pName += alpha ? ch.toLowerCase() : ch;
-                  if (pEnd ? pDepth === 0 && pName === "template" : pName === "plaintext") {
-                    out += text.slice(from, pAt) + "&lt;";
-                    from = pAt + 1;
-                    ps = "data";
-                  }
-                }
-                break;
-              case "attr":
-                if (ch === ">") tagEnd();
-                else if (!ws && ch !== "/") ps = "aname";
-                break;
-              case "aname":
-                if (ch === ">") tagEnd();
-                else if (ch === "/") ps = "attr";
-                else if (ch === "=") ps = "aval";
-                break;
-              case "aval":
-                if (ch === ">") tagEnd();
-                else if (ch === '"') ps = "dq";
-                else if (ch === "'") ps = "sq";
-                else if (!ws) ps = "uq";
-                break;
-              case "dq":
-              case "sq":
-                i = text.indexOf(ps === "dq" ? '"' : "'", i);
-                if (i < 0) i = text.length;
-                else ps = "attr";
-                break;
-              case "uq":
-                if (ch === ">") tagEnd();
-                else if (ws) ps = "attr";
-                break;
-              case "md":
-              case "mdd":
-                if (ch === "-") ps = ps === "md" ? "mdd" : "cs";
-                else {
-                  ps = "bogus";
-                  i--;
-                }
-                break;
-              case "bogus":
-                i = text.indexOf(">", i);
-                if (i < 0) i = text.length;
-                else ps = "data";
-                break;
-              case "cs":
-              case "csd":
-                if (ch === ">") ps = "data";
-                else if (ch === "-") ps = ps === "cs" ? "csd" : "ce";
-                else {
-                  ps = "c";
-                  i--;
-                }
-                break;
-              case "c":
-                i = text.indexOf("-", i);
-                if (i < 0) i = text.length;
-                else ps = "ced";
-                break;
-              case "ced":
-                if (ch === "-") ps = "ce";
-                else {
-                  ps = "c";
-                  i--;
-                }
-                break;
-              case "ce":
-              case "ceb":
-                if (ch === ">") ps = "data";
-                else if (ch === "-") ps = ps === "ce" ? "ce" : "ced";
-                else if (ch === "!" && ps === "ce") ps = "ceb";
-                else {
-                  ps = "c";
-                  i--;
-                }
-                break;
-              case "raw":
-                if (pSub === 0) {
-                  i = text.indexOf("<", i);
-                  if (i < 0) i = text.length;
-                  else ps = "rlt";
-                } else if (ch === "<") {
-                  ps = "rlt";
-                  pDash = 0;
-                } else if (ch === "-") {
-                  pDash++;
-                } else {
-                  if (ch === ">" && pDash > 1) pSub = 0;
-                  pDash = 0;
-                }
-                break;
-              case "rlt":
-                pBuf = "";
-                if (ch === "/") ps = pSub === 2 ? "rdname" : "rname";
-                else if (ch === "!" && pRaw === "script" && pSub === 0) ps = "rbang";
-                else {
-                  ps = alpha && pSub === 1 ? "rdname" : "raw";
-                  i--;
-                }
-                break;
-              case "rbang":
-              case "rbangd":
-                if (ch !== "-") {
-                  ps = "raw";
-                  i--;
-                } else if (ps === "rbang") ps = "rbangd";
-                else {
-                  ps = "raw";
-                  pSub = 1;
-                  pDash = 2;
-                }
-                break;
-              case "rname":
-              case "rdname":
-                if (alpha) {
-                  if (pBuf.length < 10) pBuf += ch.toLowerCase();
-                } else if (!ws && ch !== "/" && ch !== ">") {
-                  ps = "raw";
-                  i--;
-                } else if (ps === "rdname") {
-                  ps = "raw";
-                  if (pBuf === "script") pSub = 3 - pSub;
-                } else if (pBuf === pRaw) {
-                  ps = "attr";
-                  pName = pRaw;
-                  pEnd = true;
-                  if (ch === ">") tagEnd();
-                } else {
-                  ps = "raw";
-                  i--;
-                }
-                break;
-            }
-          }
-          if (
-            (ps === "lt" || ps === "endlt" || ps === "name") &&
-            (pEnd ? pDepth === 0 && "template".startsWith(pName) : "plaintext".startsWith(pName))
-          ) {
-            patchTail = text.slice(pAt);
-            ps = "data";
-            return out + text.slice(from, pAt);
-          }
-          return out + text.slice(from);
-        };
-        const patchEnd = () => {
-          let out = patchTail && "&lt;" + patchTail.slice(1);
-          patchTail = "";
-          while (ps !== "data" || pDepth > 0 || pNoscript > 0) {
-            out += guard(
-              ps === "dq"
-                ? '">'
-                : ps === "sq"
-                  ? "'>"
-                  : ps[0] === "c"
-                    ? "-->"
-                    : ps[0] === "r"
-                      ? pSub === 2
-                        ? "-->"
-                        : "</" + pRaw + ">"
-                      : ps !== "data"
-                        ? ">"
-                        : pNoscript > 0
-                          ? "</noscript>"
-                          : "</template>",
-            );
-          }
-          return out;
-        };
-        const seen = new Set();
-        const needle = 'name="' + deferId;
-        const reach = needle.length + 20;
-        let seenTail = "";
-        const find = (text) => {
-          for (let i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length)) {
-            let j = i + needle.length;
-            while (text.charCodeAt(j) >= 48 && text.charCodeAt(j) <= 57) j++;
-            if (text[j] === '"' && j > i + needle.length) seen.add(text.slice(i + 6, j));
-          }
-        };
-        const scan = (text) => {
-          if (seenTail) find(seenTail + text.slice(0, reach));
-          find(text);
-          seenTail = (text.length < reach ? seenTail + text : text).slice(-reach);
-        };
-        let patchName;
-        let patchOpen = false;
-        let helperSent = false;
-        const emit = (text) => {
-          if (cancelled) return;
-          if (deferred.length > 0) scan(text);
-          controller.enqueue(encoder.encode(text));
-        };
-        const openPatch = () => {
-          patchOpen = true;
-          if (!helperSent) {
-            helperSent = true;
-            emit(
-              '<script>window.__renduPatch=(typeof HTMLTemplateElement!=="undefined"&&"htmlFor" in HTMLTemplateElement.prototype)?function(){}:function(){var t=document.currentScript&&document.currentScript.previousElementSibling;\nif(!t||t.tagName!=="TEMPLATE"||!t.hasAttribute("for"))return;\ntry{\n  var name=t.getAttribute("for");\n  if(!name)return;\n  var data=function(n){return n.target?"?"+n.target+" "+n.data:n.data};\n  var w=document.createTreeWalker(document,192),n,m,start=null,end=null;\n  while((n=w.nextNode())){\n    m=/^\\?(marker|start)\\s+name=["\']?([^"\'\\s?>]+)/.exec(data(n));\n    if(m&&m[2]===name){start=n;if(m[1]==="marker")end=n;break;}\n  }\n  if(!start)return;\n  if(end!==start){\n    for(var s=start.nextSibling,depth=0,d;s;s=s.nextSibling){\n      if(s.nodeType!==7&&s.nodeType!==8)continue;\n      d=data(s);\n      if(/^\\?start\\b/.test(d))depth++;\n      else if(/^\\?end\\b/.test(d)){if(depth===0){end=s;break;}depth--;}\n    }\n  }\n  var parent=start.parentNode;\n  if(!parent)return;\n  if(end!==start){\n    for(var c=start.nextSibling,nx;c&&c!==end;c=nx){nx=c.nextSibling;parent.removeChild(c);}\n  }\n  parent.insertBefore(t.content,end||null);\n  if(end&&end!==start)parent.removeChild(end);\n  parent.removeChild(start);\n}finally{\n  t.remove();\n}};<\/script>',
-            );
-          }
-          emit('<template for="' + patchName + '">');
-        };
-        const enqueue = (value) => {
-          if (cancelled) return;
-          if (patchName === undefined) {
-            if (ArrayBuffer.isView(value)) controller.enqueue(value);
-            else emit(String(value));
-            return;
-          }
-          const text = ArrayBuffer.isView(value)
-            ? decoder.decode(value, { stream: true })
-            : decoder.decode() + String(value);
-          if (!text) return;
-          if (!patchOpen) openPatch();
-          scan(text);
-          const guarded = guard(text);
-          if (guarded) controller.enqueue(encoder.encode(guarded));
-        };
-        const write = async (chunk) => {
-          if (typeof chunk === "function") {
-            const echoed = (__sink__ = []);
-            try {
-              chunk = chunk();
-            } finally {
-              __sink__ = undefined;
-            }
-            if (echoed.length > 0) {
-              if (typeof chunk?.then === "function") {
-                chunk.then(undefined, () => {});
-              }
-              for (const part of echoed) {
-                if (cancelled) return;
-                await write(part);
-              }
-            }
-          }
-          if (typeof chunk?.then === "function") {
-            chunk = await chunk;
-          }
-          if (chunk instanceof Response) {
-            chunk = chunk.body;
-          }
-          if (chunk === null || chunk === undefined) {
-            return;
-          }
-          if (chunk instanceof ReadableStream) {
-            const reader = chunk.getReader();
-            activeReader = reader;
-            try {
-              while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                if (cancelled) return;
-                enqueue(value);
-              }
-            } finally {
-              activeReader = undefined;
-              reader.releaseLock();
-            }
-          } else {
-            enqueue(chunk);
-          }
-        };
-
-        for (const chunk of chunks) {
-          if (cancelled) return;
-          await write(chunk);
         }
-
-        const drain = async (reader, first) => {
-          activeReader = reader;
-          try {
-            for (let r = first; !r.done; r = await reader.read()) {
-              if (cancelled) return;
-              enqueue(r.value);
+        if ((e(a) && (a = await a), a instanceof Response && (a = a.body), a != null)) {
+          if (a instanceof ReadableStream) {
+            let e = a.getReader();
+            n.activeReader = e;
+            try {
+              for (;;) {
+                let { value: t, done: i } = await e.read();
+                if (i) break;
+                if (n.cancelled) return;
+                r(t);
+              }
+            } finally {
+              ((n.activeReader = void 0), e.releaseLock());
             }
-          } finally {
-            activeReader = undefined;
-            openReaders.delete(reader);
-            reader.releaseLock();
+          } else r(a);
+        }
+      };
+      return i;
+    }
+    let r = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
+    function i() {
+      let e = ``,
+        t = `data`,
+        n = 0,
+        i = 0,
+        a = 0,
+        o = ``,
+        s = !1,
+        c = ``,
+        l = 0,
+        u = 0,
+        d = ``,
+        f = () => {
+          ((t = `data`),
+            o === `template`
+              ? (i += s ? -1 : 1)
+              : o === `noscript`
+                ? (a = Math.max(0, a + (s ? -1 : 1)))
+                : !s && r.includes(o) && ((t = `raw`), (c = o), (l = 0), (u = 0)));
+        },
+        p = (r) => {
+          ((r = e + r), (e = ``));
+          let a = ``,
+            p = 0;
+          for (let e = 0; e < r.length; e++) {
+            let m = r[e],
+              h = r.charCodeAt(e),
+              g = h === 32 || h === 9 || h === 10 || h === 12 || h === 13,
+              _ = (h >= 65 && h <= 90) || (h >= 97 && h <= 122);
+            switch (t) {
+              case `data`:
+                ((e = r.indexOf(`<`, e)),
+                  e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (o = ``), (s = !1)));
+                break;
+              case `lt`:
+                (m === `/`
+                  ? (t = `endlt`)
+                  : m === `!`
+                    ? (t = `md`)
+                    : m === `?`
+                      ? (t = `bogus`)
+                      : ((t = _ ? `name` : `data`), e--),
+                  (s = t === `endlt`));
+                break;
+              case `endlt`:
+                m === `>` ? (t = `data`) : ((t = _ ? `name` : `bogus`), e--);
+                break;
+              case `name`:
+                g || m === `/`
+                  ? (t = `attr`)
+                  : m === `>`
+                    ? f()
+                    : (o.length < 10 && (o += _ ? m.toLowerCase() : m),
+                      (s ? i === 0 && o === `template` : o === `plaintext`) &&
+                        ((a += r.slice(p, n) + `&lt;`), (p = n + 1), (t = `data`)));
+                break;
+              case `attr`:
+                m === `>` ? f() : !g && m !== `/` && (t = `aname`);
+                break;
+              case `aname`:
+                m === `>` ? f() : m === `/` ? (t = `attr`) : m === `=` && (t = `aval`);
+                break;
+              case `aval`:
+                m === `>` ? f() : m === `"` ? (t = `dq`) : m === `'` ? (t = `sq`) : g || (t = `uq`);
+                break;
+              case `dq`:
+              case `sq`:
+                ((e = r.indexOf(t === `dq` ? `"` : `'`, e)), e < 0 ? (e = r.length) : (t = `attr`));
+                break;
+              case `uq`:
+                m === `>` ? f() : g && (t = `attr`);
+                break;
+              case `md`:
+              case `mdd`:
+                m === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
+                break;
+              case `bogus`:
+                ((e = r.indexOf(`>`, e)), e < 0 ? (e = r.length) : (t = `data`));
+                break;
+              case `cs`:
+              case `csd`:
+                m === `>`
+                  ? (t = `data`)
+                  : m === `-`
+                    ? (t = t === `cs` ? `csd` : `ce`)
+                    : ((t = `c`), e--);
+                break;
+              case `c`:
+                ((e = r.indexOf(`-`, e)), e < 0 ? (e = r.length) : (t = `ced`));
+                break;
+              case `ced`:
+                m === `-` ? (t = `ce`) : ((t = `c`), e--);
+                break;
+              case `ce`:
+              case `ceb`:
+                m === `>`
+                  ? (t = `data`)
+                  : m === `-`
+                    ? (t = t === `ce` ? `ce` : `ced`)
+                    : m === `!` && t === `ce`
+                      ? (t = `ceb`)
+                      : ((t = `c`), e--);
+                break;
+              case `raw`:
+                l === 0
+                  ? ((e = r.indexOf(`<`, e)), e < 0 ? (e = r.length) : (t = `rlt`))
+                  : m === `<`
+                    ? ((t = `rlt`), (u = 0))
+                    : m === `-`
+                      ? u++
+                      : (m === `>` && u > 1 && (l = 0), (u = 0));
+                break;
+              case `rlt`:
+                ((d = ``),
+                  m === `/`
+                    ? (t = l === 2 ? `rdname` : `rname`)
+                    : m === `!` && c === `script` && l === 0
+                      ? (t = `rbang`)
+                      : ((t = _ && l === 1 ? `rdname` : `raw`), e--));
+                break;
+              case `rbang`:
+              case `rbangd`:
+                m === `-`
+                  ? t === `rbang`
+                    ? (t = `rbangd`)
+                    : ((t = `raw`), (l = 1), (u = 2))
+                  : ((t = `raw`), e--);
+                break;
+              case `rname`:
+              case `rdname`:
+                _
+                  ? d.length < 10 && (d += m.toLowerCase())
+                  : !g && m !== `/` && m !== `>`
+                    ? ((t = `raw`), e--)
+                    : t === `rdname`
+                      ? ((t = `raw`), d === `script` && (l = 3 - l))
+                      : d === c
+                        ? ((t = `attr`), (o = c), (s = !0), m === `>` && f())
+                        : ((t = `raw`), e--);
+            }
+          }
+          return (t === `lt` || t === `endlt` || t === `name`) &&
+            (s ? i === 0 && `template`.startsWith(o) : `plaintext`.startsWith(o))
+            ? ((e = r.slice(n)), (t = `data`), a + r.slice(p, n))
+            : a + r.slice(p);
+        };
+      return {
+        guard: p,
+        end: () => {
+          let n = e && `&lt;` + e.slice(1);
+          for (e = ``; t !== `data` || i > 0 || a > 0;)
+            n += p(
+              t === `dq`
+                ? `">`
+                : t === `sq`
+                  ? `'>`
+                  : t[0] === `c`
+                    ? `-->`
+                    : t[0] === `r`
+                      ? l === 2
+                        ? `-->`
+                        : `</` + c + `>`
+                      : t === `data`
+                        ? a > 0
+                          ? `</noscript>`
+                          : `</template>`
+                        : `>`,
+            );
+          return n;
+        },
+      };
+    }
+    function a(e) {
+      let t = new Set(),
+        n = `name="` + e,
+        r = n.length + 20,
+        i = ``,
+        a = (e) => {
+          for (let r = e.indexOf(n); r >= 0; r = e.indexOf(n, r + n.length)) {
+            let i = r + n.length;
+            for (; e.charCodeAt(i) >= 48 && e.charCodeAt(i) <= 57;) i++;
+            e[i] === `"` && i > r + n.length && t.add(e.slice(r + 6, i));
           }
         };
-        let index = 0;
-        const pending = new Map();
-        const parked = new Set();
-        const track = () => {
-          while (index < deferred.length) {
-            parked.add(deferred[index++]);
+      return {
+        seen: t,
+        scan: (e) => {
+          (i && a(i + e.slice(0, r)), a(e), (i = (e.length < r ? i + e : e).slice(-r)));
+        },
+      };
+    }
+    function o(e, t, r) {
+      let o = new TextEncoder(),
+        s = new TextDecoder(),
+        c = new Set(),
+        l = { cancelled: !1, activeReader: void 0 };
+      return new ReadableStream({
+        async pull(u) {
+          let { guard: d, end: f } = i(),
+            { seen: p, scan: m } = a(r),
+            h,
+            g = !1,
+            _ = !1,
+            v = (e) => {
+              l.cancelled || (t.length > 0 && m(e), u.enqueue(o.encode(e)));
+            },
+            y = () => {
+              ((g = !0),
+                _ ||
+                  ((_ = !0),
+                  v(
+                    "<script>window.__renduPatch=typeof HTMLTemplateElement<`u`&&`htmlFor`in HTMLTemplateElement.prototype?function(){}:function(){let e=document.currentScript,t=e&&e.previousElementSibling;if(!(!t||t.tagName!==`TEMPLATE`||!t.hasAttribute(`for`)))try{let e=t.getAttribute(`for`);if(!e)return;let n=e=>e.target?`?`+e.target+` `+e.data:e.data,r=document.createTreeWalker(document,192),i=null,a=null;for(let t=r.nextNode();t;t=r.nextNode()){let r=/^\\?(marker|start)\\s+name=[\"']?([^\"'\\s?>]+)/.exec(n(t));if(r&&r[2]===e){i=t,r[1]===`marker`&&(a=t);break}}if(!i)return;if(a!==i)for(let e=i.nextSibling,t=0;e;e=e.nextSibling){if(e.nodeType!==7&&e.nodeType!==8)continue;let r=n(e);if(/^\\?start\\b/.test(r))t++;else if(/^\\?end\\b/.test(r)){if(t===0){a=e;break}t--}}let o=i.parentNode;if(!o)return;if(a!==i)for(let e=i.nextSibling,t;e&&e!==a;e=t)t=e.nextSibling,o.removeChild(e);o.insertBefore(t.content,a),a&&a!==i&&o.removeChild(a),o.removeChild(i)}finally{t.remove()}};<\/script>",
+                  )),
+                v(`<template for="` + h + `">`));
+            },
+            b = (e) => {
+              if (l.cancelled) return;
+              if (h === void 0) {
+                ArrayBuffer.isView(e) ? u.enqueue(e) : v(String(e));
+                return;
+              }
+              let t = ArrayBuffer.isView(e) ? s.decode(e, { stream: !0 }) : s.decode() + String(e);
+              if (!t) return;
+              (g || y(), m(t));
+              let n = d(t);
+              n && u.enqueue(o.encode(n));
+            },
+            x = n(l, b);
+          for (let t of e) {
+            if (l.cancelled) return;
+            await x(t);
           }
-          for (const entry of parked) {
-            if (seen.has(entry.name)) {
-              parked.delete(entry);
-              pending.set(entry, entry.settled);
+          let S = async (e, t) => {
+              l.activeReader = e;
+              try {
+                for (let n = t; !n.done; n = await e.read()) {
+                  if (l.cancelled) return;
+                  b(n.value);
+                }
+              } finally {
+                ((l.activeReader = void 0), c.delete(e), e.releaseLock());
+              }
+            },
+            C = 0,
+            w = new Map(),
+            T = new Set(),
+            E = () => {
+              for (; C < t.length;) T.add(t[C++]);
+              for (let e of T) p.has(e.name) && (T.delete(e), w.set(e, e.settled));
+              if (w.size === 0 && T.size > 0) {
+                let e = T.values().next().value;
+                (T.delete(e), w.set(e, e.settled));
+              }
+            };
+          for (E(); w.size > 0;) {
+            if (l.cancelled) return;
+            let e = await Promise.race(w.values());
+            if ((w.delete(e.entry), l.cancelled)) return;
+            if (!e.failed && e.reader === void 0) {
+              let t = e.value instanceof Response ? e.value.body : e.value;
+              if (t instanceof ReadableStream && w.size > 0) {
+                let n = t.getReader();
+                (c.add(n),
+                  w.set(
+                    e.entry,
+                    n.read().then(
+                      (t) => ({ entry: e.entry, reader: n, first: t }),
+                      (t) => ({ entry: e.entry, error: t, failed: !0 }),
+                    ),
+                  ));
+                continue;
+              }
             }
-          }
-          if (pending.size === 0 && parked.size > 0) {
-            const [entry] = parked;
-            parked.delete(entry);
-            pending.set(entry, entry.settled);
-          }
-        };
-        track();
-        while (pending.size > 0) {
-          if (cancelled) return;
-          let settled = await Promise.race(pending.values());
-          pending.delete(settled.entry);
-          if (cancelled) return;
-          if (!settled.failed && settled.reader === undefined) {
-            const body = settled.value instanceof Response ? settled.value.body : settled.value;
-            if (body instanceof ReadableStream && pending.size > 0) {
-              const reader = body.getReader();
-              openReaders.add(reader);
-              pending.set(
-                settled.entry,
-                reader.read().then(
-                  (first) => ({ entry: settled.entry, reader, first }),
-                  (error) => ({ entry: settled.entry, error, failed: true }),
-                ),
-              );
+            if (e.failed) {
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), E());
               continue;
             }
+            h = e.entry.name;
+            let t = !1;
+            try {
+              await (e.reader ? S(e.reader, e.first) : x(e.value));
+            } catch (n) {
+              ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
+            }
+            let n = s.decode();
+            (n && b(n), !g && !t && y());
+            let r = g ? f() + `</template>` : ``;
+            ((h = void 0), (g = !1), r && (v(r), v(`<script>__renduPatch()<\/script>`)), E());
           }
-          if (settled.failed) {
-            console.error(
-              "[rendu] deferred value " + settled.entry.name + " failed:",
-              settled.error,
+          l.cancelled || u.close();
+        },
+        cancel(e) {
+          l.cancelled = !0;
+          let n = l.activeReader;
+          l.activeReader = void 0;
+          for (let t of c) t.cancel(e).catch(() => {});
+          c.clear();
+          for (let n of t)
+            n.settled?.then(
+              (t) => {
+                let n = `value` in t ? t.value : void 0,
+                  r = n instanceof Response ? n.body : n;
+                r instanceof ReadableStream && !r.locked && r.cancel(e).catch(() => {});
+              },
+              () => {},
             );
-            track();
-            continue;
-          }
-          patchName = settled.entry.name;
-          let failed = false;
-          try {
-            await (settled.reader ? drain(settled.reader, settled.first) : write(settled.value));
-          } catch (error) {
-            failed = true;
-            console.error("[rendu] deferred value " + settled.entry.name + " failed:", error);
-          }
-          const rest = decoder.decode();
-          if (rest) enqueue(rest);
-          if (!patchOpen && !failed) openPatch();
-          const end = patchOpen ? patchEnd() + "</template>" : "";
-          patchName = undefined;
-          patchOpen = false;
-          if (end) {
-            emit(end);
-            emit("<script>__renduPatch()<\/script>");
-          }
-          track();
-        }
-
-        if (cancelled) return;
-        controller.close();
-      },
-      cancel(reason) {
-        cancelled = true;
-        const reader = activeReader;
-        activeReader = undefined;
-        for (const reader of openReaders) reader.cancel(reason).catch(() => {});
-        openReaders.clear();
-        for (const entry of deferred) {
-          entry.settled?.then(
-            (settled) => {
-              const body = settled.value instanceof Response ? settled.value.body : settled.value;
-              if (body instanceof ReadableStream && !body.locked)
-                body.cancel(reason).catch(() => {});
-            },
-            () => {},
-          );
-        }
-        return reader?.cancel(reason);
-      },
-    });
-  }
-  __sink__ = undefined;
+          return n?.cancel(e);
+        },
+      });
+    }
+    return o;
+  })();
+  __sink__ = void 0;
   return concatStreams(__chunks__, __deferred__, __deferId__);
 }

@@ -470,25 +470,20 @@ describe("defer", () => {
   });
 
   it("does not inline the patch runtime into a template without defer()", () => {
-    // None of it could run: without defer() nothing is ever queued.
+    // None of it could run: without defer() nothing is ever queued. Local names are mangled in
+    // the generated runtime, so look for the strings and bindings that survive minification.
     const identifiers = [
-      "guard",
-      "patchEnd",
-      "patchTail",
-      "patchName",
-      "openPatch",
-      "scan",
-      "seen",
-      "track",
-      "parked",
-      "drain",
-      "openReaders",
+      "<template for=",
+      "</template>",
+      "plaintext",
+      "noscript",
+      'name="',
+      "[rendu] deferred value",
       "__deferred__",
-      "deferId",
+      "__deferId__",
       "__renduPatch",
     ];
-    const has = (source: string, name: string) =>
-      new RegExp(`(?<![\\w$])${name}(?![\\w$])`).test(source);
+    const has = (source: string, name: string) => source.includes(name);
     for (const opts of [{}, { polyfill: false }, { contextKeys: ["v"] }]) {
       const plain = compileTemplateToString(`<a><?= v ?></a>`, { stream: true, ...opts });
       expect(identifiers.filter((name) => has(plain, name))).toEqual([]);

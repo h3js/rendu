@@ -16,6 +16,7 @@
   },
   "scripts": {
     "build": "obuild",
+    "build:runtime": "node ./scripts/build-runtime.ts",
     "dev": "vitest dev",
     "lint": "oxlint . && oxfmt --check .",
     "fmt": "automd && oxlint . --fix && oxfmt .",
@@ -42,6 +43,7 @@
     "oxlint": "^1.81.0",
     "parse5": "^8.0.1",
     "rendu": "link:*",
+    "rolldown": "^1.2.6",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   },

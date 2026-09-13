@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { compileTemplateToModule, type CompileTemplateToModuleOptions } from "../src/index.ts";
-import { referencesIdentifier } from "../src/_runtime.ts";
+import { referencesIdentifier } from "../src/runtime.ts";
 
 const importSource = pathToFileURL(new URL("../src/index.ts", import.meta.url).pathname).href;
 

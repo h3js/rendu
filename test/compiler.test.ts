@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileTemplate } from "../src/compiler.ts";
-import { runtimeHelpers } from "../src/_runtime.ts";
+import { runtimeHelpers } from "../src/runtime.ts";
 import { format } from "oxfmt";
 
 describe("compileTemplater", () => {

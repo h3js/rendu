@@ -48,6 +48,9 @@ importers:
       rendu:
         specifier: link:*
         version: link:*
+      rolldown:
+        specifier: ^1.2.6
+        version: 1.2.6
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

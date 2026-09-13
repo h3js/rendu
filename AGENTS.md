@@ -8,8 +8,9 @@ JavaScript Hypertext Preprocessor — a lightweight toolkit for mixing HTML and 
 src/
   parser.ts     # Tokenizer: template string → Token[] (text | code | expr)
   compiler.ts   # Token[] → async function body string → AsyncFunction
-  _runtime.ts   # Inlined JS runtime: helper prelude, echo/stream/text concatenation
-  _defer.ts     # defer() snippets, <template for> patch framing/flush/cancel fragments, client fallback
+  runtime.ts    # Composes the inlined runtime: helper prelude + body + output runtime
+  runtime/      # Typed sources of the inlined runtime (see "Runtime" below)
+    _generated.ts  # Minified snippets built from runtime/*.ts by `pnpm build:runtime` (checked in)
   render.ts     # Request/response layer: cookies, headers, redirects, HTML escaping
   module.ts     # compileTemplateToModule(): ESM codegen importing only used context helpers
   cli.ts        # CLI entry: serves static files with srvx, renders .html as templates
@@ -32,23 +33,40 @@ Converts template syntax to normalized `<?...?>` tags, then tokenizes:
 - Two modes: `stream: true` (returns `ReadableStream`) / `stream: false` (returns `string`)
 - `contextKeys` option uses destructuring instead of `with()` for strict mode compatibility
 
-### Runtime (`_runtime.ts`)
+### Runtime (`runtime.ts`, `runtime/`)
 
-Inlined JS code (not imported at runtime).
+The runtime is inlined into every compiled template (not imported). Its source is typed TS in
+`src/runtime/`; `scripts/build-runtime.ts` (rolldown) bundles and minifies it into
+`src/runtime/_generated.ts`, which is checked in. **After changing a runtime source, run
+`pnpm build:runtime`** (`test/generated.test.ts` fails while the output is stale). Never edit
+`_generated.ts` by hand. Generated code carries no comments: document the sources instead.
 
-- **`runtimeHelpers`**: Table of single-line helper snippets (`echo`, `htmlspecialchars`)
-- **`runtimePrelude(body, exclude, helpers)`**: Always emits `echo`; other helpers are only emitted when the compiled body references them and they are not in `exclude` (the compiler passes `contextKeys`). The prelude is always one line so `preserveLines` offsets stay constant
-- **`defer`** is a mode-specific helper (streaming: queues a `<template for>` patch; text: renders in place), inlined like the others only when referenced. It lives in `_defer.ts` together with the `concatStreams()` fragments (`deferConcatStreams()`) that frame (`deferGuard`: a streaming HTML tokenizer-state tracker that escapes a closing `</template` and closes whatever a patch left open), track emitted markers (`deferScan`, so a nested `defer()` patch waits for the patch that carries its marker), write (`deferEnqueue`: opens a patch lazily on its first content, so a value that fails before any content leaves its placeholder alone), flush (`deferFlush`) and cancel (`deferCancel`) deferred values and the client fallback script. They are only spliced in when `defer` is inlined: a template without `defer()` gets the plain `concatStreams()` (`plainConcatStreams` in `_runtime.ts`) — keep defer-only code out of it
-- Generated code carries no comments (they would ship in every compiled template and to the browser): explain it in the TS comment, not inside the snippet
+Seven files, grouped by what they inline. The generator builds each snippet from a virtual entry that re-exports only the names it needs, so one module can hold several snippets (tree-shaking keeps them apart; `test/generated.test.ts` checks for leaks). Keep module-level code side-effect free — anything a snippet does not reference but rolldown cannot prove pure ends up in it:
+
+| File            | Snippets                                                                                                                                                                                                                                                                                                                           |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prelude.ts`    | `echo()` (+ `__chunks__`, `__sink__`), `htmlspecialchars()`                                                                                                                                                                                                                                                                        |
+| `stream.ts`     | `concatStreams()` for a template without `defer()`                                                                                                                                                                                                                                                                                 |
+| `defer.ts`      | streaming `defer()` (+ `__deferred__`, `__deferId__`) and `concatStreams()` that flushes it: patch framing (`createPatchGuard()`, a streaming HTML tokenizer-state tracker), marker tracking (`createMarkerScan()`, so a nested `defer()` patch waits for the patch that carries its marker), lazy patch opening, flush and cancel |
+| `text.ts`       | `__render__()` and the text `defer()`                                                                                                                                                                                                                                                                                              |
+| `_shared.ts`    | `callEchoed()`, `createWrite()` (imported, not a snippet)                                                                                                                                                                                                                                                                          |
+| `patch.ts`      | the client fallback (browser code)                                                                                                                                                                                                                                                                                                 |
+| `_generated.ts` | the output                                                                                                                                                                                                                                                                                                                         |
+
+- **Prelude helpers** (`echo`, `htmlspecialchars`, `defer`): declarations in the template function scope, minified as a script (top-level names kept). Each is one line: the prelude always spans exactly one line so `preserveLines` offsets stay constant
+- **`runtimePrelude(body, exclude, helpers)`**: Always emits `echo`; other helpers are only emitted when the compiled body references them and they are not in `exclude` (the compiler passes `contextKeys`)
+- **Output runtimes** (default exports of `stream.ts`, `defer.ts`, `text.ts`): bundled as an IIFE bound to `concatStreams` / `__render__`; the generated code then clears `__sink__` and calls it with `__chunks__`, so everything else is private and mangled
+- **`defer`** is mode-specific (streaming: queues a `<template for>` patch; text: renders in place), inlined only when referenced. Only then does the stream use `defer.ts`'s runtime; a template without `defer()` gets the plain `stream.ts` — keep defer-only code out of it
+- **Client fallback** (`patch.ts`): minified into a `<script>` string and injected into `defer.ts` as `__PATCH_SCRIPT__`. The defer runtime is built twice, with `__POLYFILL__` on and off (the `polyfill` compile option picks one)
 
 Two variants:
 
-- **`runtimeStream`**: Collects chunks, returns `ReadableStream` with `concatStreams()`, then flushes `defer()`red values out of order as `<template for>` patches (spec transcribed in [`.agents/html-template-for.md`](./.agents/html-template-for.md))
-- **`runtimeText`**: Collects chunks, awaits promises, concatenates to string via `__render__()` (`defer()` renders in place, as a function chunk so it matches the streamed output)
+- **Streaming** (`runtimeStream`): Collects chunks, returns `ReadableStream` with `concatStreams()`, then flushes `defer()`red values out of order as `<template for>` patches (spec transcribed in [`.agents/html-template-for.md`](./.agents/html-template-for.md))
+- **Text** (`runtimeText`): Collects chunks, awaits promises, concatenates to string via `__render__()` (`defer()` renders in place, as a function chunk so it matches the streamed output)
 
 Handles: strings, functions, Promises, Response objects, ReadableStreams, Uint8Arrays
 
-`echo()` pushes into `__sink__`: `__chunks__` during the body, cleared (`undefined`) once the body ends. Both runtimes call a function chunk with a fresh sink (`echoCall()`) and write what it echoed synchronously right before its result, so that output lands in place in both modes. Any other late `echo()` (after an `await`, from a timer) throws — never let it append to `__chunks__` or an open patch
+`echo()` pushes into `__sink__`: `__chunks__` during the body, cleared (`undefined`) once the body ends. Both runtimes call a function chunk with a fresh sink (`callEchoed()`) and write what it echoed synchronously right before its result, so that output lands in place in both modes. Any other late `echo()` (after an `await`, from a timer) throws — never let it append to `__chunks__` or an open patch
 
 ### Render (`render.ts`)
 
@@ -72,6 +90,7 @@ pnpm dev                  # Interactive test runner (vitest dev)
 pnpm vitest run <path>    # Run specific test file
 pnpm test                 # Full: lint + type-check + tests with coverage
 pnpm build                # Build with obuild (outputs to dist/)
+pnpm build:runtime        # Regenerate src/runtime/_generated.ts from src/runtime/*.ts
 pnpm play                 # Start playground server
 pnpm fmt             # automd + oxlint --fix + oxfmt
 ```
@@ -81,6 +100,7 @@ pnpm fmt             # automd + oxlint --fix + oxfmt
 - **`srvx`** — HTTP server (FastResponse, serve, serveStatic, log)
 - **`cookie-es`** — Cookie parsing/serialization
 - **`obuild`** — Build tool
+- **`rolldown`** — Bundles and minifies the inlined runtime (`scripts/build-runtime.ts`)
 - **`vitest`** — Test runner (with **`happy-dom`** for the client-fallback tests)
 - **`oxlint` / `oxfmt`** — Linter and formatter
 - **`tsgo`** (`@typescript/native-preview`) — Type checking
@@ -93,6 +113,7 @@ Tests are in `test/` using vitest:
 - `test/compiler.test.ts` — End-to-end compile + render tests with snapshot comparisons (formatted via `oxfmt`)
 - `test/defer.test.ts` — Out-of-order streaming: marker emission, completion-order flushing, text-mode fallback. Ordering tests hold values back with test-controlled gates (`collectWhen()`), not wall-clock thresholds
 - `test/polyfill.test.ts` — The client `<template for>` fallback, against a happy-dom document
+- `test/generated.test.ts` — `src/runtime/_generated.ts` is up to date with its sources
 
 Snapshots live in `test/snapshots/`.
 
@@ -101,7 +122,7 @@ Snapshots live in `test/snapshots/`.
 - [`.agents/html-template-for.md`](./.agents/html-template-for.md) — the `<template for>` /
   processing instruction spec that `defer()` targets, transcribed from
   [whatwg/html#11818](https://github.com/whatwg/html/pull/11818). Read this before touching
-  marker emission in `_defer.ts` or the `<?` handling in `parser.ts`.
+  marker emission in `src/runtime/` or the `<?` handling in `parser.ts`.
 
 ## Template Syntax Reference
 
@@ -120,7 +141,7 @@ Snapshots live in `test/snapshots/`.
 ## Runtime Helpers
 
 `echo()` and `defer()` are **not** context variables — they are declarations in the inlined
-prelude (`src/_runtime.ts`), so they are in scope in every compiled template regardless of
+prelude (`src/runtime/`), so they are in scope in every compiled template regardless of
 the render context. Do not add them to `RENDER_CONTEXT_KEYS`: the `contextKeys` path
 compiles to `const { echo, defer } = __context__`, which shadows the prelude declarations
 with `undefined` and fails at render time.
