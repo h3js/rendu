@@ -198,6 +198,71 @@ Use the `echo()` function for streaming content. Accepts: strings, functions, Pr
 </script>
 ```
 
+`echo()` must be called **synchronously**: from the template itself, or from a function that is being rendered (a function passed to `echo()` or `defer()`), in which case its output goes in place, right before the function's return value. After an `await` inside such a function, or from a timer, there is no longer a position in the output to write to, so `echo()` throws — return the content from the function instead (rendu cannot tell who calls `echo()` while the template body itself is still awaiting, so such a call is written at the body's current position, not detected):
+
+```html
+<script server>
+  echo(async () => {
+    echo("<h2>Posts</h2>"); // OK: synchronous, written in place
+    const posts = await getPosts();
+    return renderPosts(posts); // not echo(renderPosts(posts)), which would throw
+  });
+</script>
+```
+
+### Deferred (Out-of-Order) Streaming
+
+`echo()` streams strictly in source order, so one slow value holds up everything after it. Use `defer()` to stream that value **out of order**: a marker is written in place immediately, the rest of the document keeps streaming, and the content is patched in when it resolves.
+
+```html
+<script server>
+  const skeleton = '<ul class="skeleton"><li></li><li></li></ul>';
+</script>
+
+<aside><?= defer(getRecommendations(), skeleton) ?></aside>
+```
+
+`defer(value, placeholder?)` accepts the same values as `echo()` (strings, functions, Promises, `Response` objects, `ReadableStream`s). A function is called immediately, so its work starts as soon as `defer()` is reached rather than when the patch is flushed. The optional `placeholder` is shown until the value arrives; any falsy placeholder means "no placeholder".
+
+Use `<?= ?>` (or `echo()`), not `{{ }}` — `defer()` returns raw marker markup, which `{{ }}` would escape into visible text.
+
+> [!WARNING]
+> Both the value and the `placeholder` are **raw, unescaped HTML**, exactly like `{{{ }}}`. Run anything request-derived through `htmlspecialchars()` first — `defer(search(q), '<p>Searching for ' + htmlspecialchars(q) + '…</p>')`. The placeholder must also be balanced markup: an unclosed tag makes the browser nest the range's end marker inside it, and the patch is then dropped.
+
+Deferred values are flushed in **completion order**, not source order, so a fast panel is never held up by a slow one. On the wire (marker names carry a per-render prefix so two renders composed into one document cannot patch each other):
+
+```html
+<aside>
+  <?start name="dk3p9x_0">
+  <ul class="skeleton">
+    …
+  </ul>
+  <?end>
+</aside>
+… rest of the document, streamed immediately …
+<template for="dk3p9x_0"
+  ><ul>
+    …the real content…
+  </ul></template
+>
+```
+
+This is the standard [`<template for>`](https://github.com/whatwg/html/pull/11818) mechanism: the browser replaces the marked region as the patch arrives, with no client-side framework involved. A small (~1KB) inline script is emitted once as a fallback for browsers without native support.
+
+> [!IMPORTANT]
+> No browser ships `<template for>` on by default yet (Chrome has it behind _Experimental Web Platform Features_; Gecko and WebKit are still open). The inline fallback is therefore what actually applies the patches today, so `compileTemplate(html, { polyfill: false })` means deferred content **never appears at all** — not "appears late". The same is true with JavaScript disabled, or for crawlers that do not execute scripts: they see the placeholder and the real content stays inside an inert `<template>`. Under a `script-src` policy that forbids inline scripts, prefer relaxing the policy for these scripts over turning the fallback off.
+
+Failure is per-panel, not per-page. If a deferred value rejects (or a deferred stream fails before it streams anything), its patch is skipped, the error is logged server-side, the placeholder stays in place, and the rest of the document — including every other panel — keeps streaming. If a deferred stream fails part-way through, the part it already streamed is applied (replacing the placeholder) and the error is logged; rendu closes whatever that truncated HTML left open — a tag, an attribute value, a comment, a `<script>` — so the patch still ends there and the panels after it are unaffected. That matches `<template for>`, where a failed patch is silent by design; there is no status code left to fail with once the head and shell are on the wire.
+
+For the same reason, `setCookie()` and `redirect()` throw if they are called from inside a deferred value: the response head has already been sent. Likewise `echo()` throws when a deferred function calls it after an `await` (see [Streaming Content](#streaming-content)), so that output cannot land in another panel's patch; that fails only this panel. What a deferred function echoes synchronously is written in place (before the marker, or into its patch when it is called at flush time).
+
+Two things worth knowing:
+
+- A deferred value cannot break out of its own patch: a `</template>` that would close it (one that does not close a `<template>` the value opened itself) is escaped and rendered as text, and so is `<plaintext>`, which nothing could close. Balanced nested `<template>` elements, and `</template>` inside an attribute value, a comment or a `<script>`, pass through unchanged. Inside `<svg>` / `<math>`, rendu still treats `<script>`, `<style>` and `<title>` as raw text the way HTML does, so keep a `</template>` or an unclosed `<!--` out of those.
+- Deferred values can nest: a `defer()` marker inside another deferred value (a string, stream, `Response` or function result, at any depth) works whichever of the two settles first. rendu holds each patch back until its marker has been written, so the inner patch always goes out after the outer patch that contains its marker; siblings keep streaming in the meantime. A marker that is never written as markup (not echoed, or escaped with `{{ }}`) cannot be patched: its patch still goes out once nothing else can write the marker, so the response always completes.
+
+In non-streaming mode (`{ stream: false }`) there is no stream to reorder, so `defer()` renders the value in place and the placeholder is dropped. A deferred value that fails (including through a late `echo()`) rejects the render.
+
 ### Global Variables
 
 Access request context and global state:

@@ -16,6 +16,7 @@
   },
   "scripts": {
     "build": "obuild",
+    "build:runtime": "node ./scripts/build-runtime.ts",
     "dev": "vitest dev",
     "lint": "oxlint . && oxfmt --check .",
     "fmt": "automd && oxlint . --fix && oxfmt .",
@@ -36,10 +37,13 @@
     "changelogen": "^0.6.2",
     "cookie-es": "^3.1.1",
     "eslint-config-unjs": "^0.6.2",
+    "happy-dom": "^20.12.2",
     "obuild": "^0.4.39",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
+    "parse5": "^8.0.1",
     "rendu": "link:*",
+    "rolldown": "^1.2.6",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   },

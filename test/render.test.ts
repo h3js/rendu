@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileTemplate } from "../src/compiler.ts";
-import { createRenderContext, renderToResponse } from "../src/render.ts";
+import { createRenderContext, renderToResponse, type RenderContext } from "../src/render.ts";
 
 const request = (init?: RequestInit) => new Request("http://localhost/page", init);
 
@@ -92,6 +92,30 @@ describe("render", () => {
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toBe("/login");
       expect(response.headers.getSetCookie()).toEqual(["session=1"]);
+    });
+
+    it("rejects setCookie and redirect once the response head is sent", async () => {
+      // defer() makes running request work after the shell routine, but the prepared
+      // headers have already been serialized by then — so fail loudly instead of appending
+      // to a Headers object nobody will read again.
+      let capturedSetCookie: RenderContext["setCookie"] | undefined;
+      let capturedRedirect: RenderContext["redirect"] | undefined;
+      const template = compileTemplate(
+        `<? capture(setCookie, redirect) ?><a><?= defer(null) ?></a>`,
+        { stream: true },
+      );
+      const response = await renderToResponse(template, {
+        request: request(),
+        context: {
+          capture: (s: RenderContext["setCookie"], r: RenderContext["redirect"]) => {
+            capturedSetCookie = s;
+            capturedRedirect = r;
+          },
+        },
+      });
+      await response.text();
+      expect(() => capturedSetCookie!("session", "1")).toThrow(/after the response head was sent/);
+      expect(() => capturedRedirect!("/login")).toThrow(/after the response head was sent/);
     });
 
     it("passes a Response returned by the template through", async () => {

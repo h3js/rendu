@@ -1,11 +1,18 @@
 import { parseTemplate } from "./parser.ts";
-import { runtimeStream, runtimeText } from "./_runtime.ts";
+import { runtimeStream, runtimeText } from "./runtime.ts";
 
 export type CompileTemplateOptions = {
   stream?: boolean;
   filename?: string;
   preserveLines?: boolean;
   contextKeys?: string[];
+  /**
+   * Emit a small client-side fallback for `defer()` patches so they also apply in
+   * browsers without native `<template for>` support. Streaming mode only.
+   *
+   * @default true
+   */
+  polyfill?: boolean;
 };
 
 export type CompiledTemplate<T> = (data: Record<string, any>) => Promise<T>;
@@ -151,7 +158,7 @@ export function compileTemplateToString(
   body =
     opts.stream === false
       ? runtimeText(body, opts.contextKeys)
-      : runtimeStream(body, opts.contextKeys);
+      : runtimeStream(body, opts.contextKeys, opts);
 
   return asyncWrapper === false ? body : `(async (__context__) => {${body}})`;
 }

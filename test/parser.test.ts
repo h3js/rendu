@@ -137,6 +137,38 @@ describe("parser", () => {
       ]);
     });
 
+    it("script server attribute forms", () => {
+      for (const open of [
+        '<script server="true">',
+        "<script server='true'>",
+        "<script server=true>",
+        "<script SERVER>",
+        '<script src="a b.js" server>',
+        "<script data-x='>' server>",
+        "<script\n  type=module\n  server\n>",
+      ]) {
+        expect(parseTemplate(`${open}const x = 1;</script>`)).toMatchObject([
+          { type: "code", contents: "const x = 1;" },
+        ]);
+      }
+    });
+
+    it("server inside attribute values or other names is text", () => {
+      for (const template of [
+        '<script data-x=" server">const x = 1;</script>',
+        "<script title='x server y'>const x = 1;</script>",
+        '<script data-x="a" title=" server ">const x = 1;</script>',
+        "<script type=server>const x = 1;</script>",
+        "<script data-server>const x = 1;</script>",
+        "<script server-side>const x = 1;</script>",
+        "<scriptural server>const x = 1;</script>",
+        "<scripts server>const x = 1;</script>",
+      ]) {
+        expect(parseTemplate(template)).toMatchObject([{ type: "text", contents: template }]);
+        expect(hasTemplateSyntax(template)).toBe(false);
+      }
+    });
+
     it("curly tags inside script server are left as code", () => {
       const tokens = parseTemplate('<script server>const t = "{{name}}";</script><?= t ?>');
       expect(tokens).toMatchObject([

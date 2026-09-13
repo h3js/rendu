@@ -3,12 +3,24 @@ export type Token = {
   contents: string;
 };
 
+/** An attribute value: quoted, or unquoted (no whitespace, quotes, `=`, `<` or `>`). */
+const attrValue = String.raw`(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)`;
+
+/** An attribute: a name with an optional value (quoted values are skipped whole). */
+const attr = String.raw`[^\s"'>/=]+(?:\s*=\s*${attrValue})?`;
+
 /**
  * A `<script ...>` opening tag whose attribute list contains a standalone `server`
  * attribute (`<script server>`, `<script server type="module">`,
  * `<script type="module" server>`, `<script server="true">`).
+ *
+ * Attributes are matched one by one, so `server` only counts as an attribute name: not
+ * as part of a longer tag name (`<scriptural server>`), a longer attribute name
+ * (`data-server`, `server-side`) or an attribute value (`title=" server"`). Only the
+ * first `server` is a candidate (the attributes before it cannot be `server`), which keeps
+ * a long unterminated tag from backtracking over every occurrence.
  */
-const scriptServerOpen = String.raw`<script(?=[^>]*\sserver(?![\w-]))[^>]*>`;
+const scriptServerOpen = String.raw`<script(?:\s+(?!server(?![^\s"'>/=]))${attr})*\s+server(?:\s*=\s*${attrValue})?(?=[\s/>])(?:\s+${attr})*\s*\/?>`;
 
 const scriptServerRe = /* @__PURE__ */ new RegExp(
   `${scriptServerOpen}([\\s\\S]*?)<\\/script>`,

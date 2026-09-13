@@ -1,7 +1,12 @@
 async function anonymous(__context__) {
   const __chunks__ = [];
-  const echo = (chunk) => {
-    __chunks__.push(chunk);
+  let __sink__ = __chunks__;
+  const echo = (e) => {
+    if (!__sink__)
+      throw Error(
+        `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
+      );
+    __sink__.push(e);
   };
   {
     const { name } = __context__;
@@ -9,38 +14,54 @@ async function anonymous(__context__) {
     if (name) echo(await name);
     else echo("Guest");
   }
-  let __out__ = "";
-  for (let chunk of __chunks__) {
-    if (typeof chunk === "function") {
-      chunk = chunk();
+  var __render__ = (function () {
+    function e(e) {
+      return typeof e?.then == `function`;
     }
-    if (typeof chunk?.then === "function") {
-      chunk = await chunk;
-    }
-    if (chunk instanceof Response) {
-      chunk = chunk.body;
-    }
-    if (chunk === null || chunk === undefined) {
-      continue;
-    }
-    if (chunk instanceof ReadableStream) {
-      const reader = chunk.getReader();
-      const decoder = new TextDecoder();
+    function t(t) {
+      let n = (__sink__ = []),
+        r;
       try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          __out__ += typeof value === "string" ? value : decoder.decode(value, { stream: true });
-        }
-        __out__ += decoder.decode();
+        r = t();
       } finally {
-        reader.releaseLock();
+        __sink__ = void 0;
       }
-    } else if (typeof chunk === "string") {
-      __out__ += chunk;
-    } else {
-      __out__ += ArrayBuffer.isView(chunk) ? new TextDecoder().decode(chunk) : String(chunk);
+      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
     }
-  }
-  return __out__;
+    async function n(r) {
+      let i = ``;
+      for (let a of r) {
+        if (typeof a == `function`) {
+          let [e, r] = t(a);
+          ((a = e), r.length > 0 && (i += await n(r)));
+        }
+        if ((e(a) && (a = await a), a instanceof Response && (a = a.body), a != null)) {
+          if (a instanceof ReadableStream) {
+            let e = a.getReader(),
+              t = new TextDecoder();
+            try {
+              for (;;) {
+                let { value: n, done: r } = await e.read();
+                if (r) break;
+                i += typeof n == `string` ? n : t.decode(n, { stream: !0 });
+              }
+              i += t.decode();
+            } finally {
+              e.releaseLock();
+            }
+          } else
+            i +=
+              typeof a == `string`
+                ? a
+                : ArrayBuffer.isView(a)
+                  ? new TextDecoder().decode(a)
+                  : String(a);
+        }
+      }
+      return i;
+    }
+    return n;
+  })();
+  __sink__ = void 0;
+  return __render__(__chunks__);
 }
