@@ -146,7 +146,12 @@ export function compileTemplateToString(
     ? `{const {${opts.contextKeys.join(",")}}=__context__;${body}}`
     : `with(__context__){${body}}`;
 
-  body = opts.stream === false ? runtimeText(body) : runtimeStream(body);
+  // Runtime helpers are only inlined when the body references them. Helpers that are
+  // explicitly provided by the context (`contextKeys`) are never inlined.
+  body =
+    opts.stream === false
+      ? runtimeText(body, opts.contextKeys)
+      : runtimeStream(body, opts.contextKeys);
 
   return asyncWrapper === false ? body : `(async (__context__) => {${body}})`;
 }

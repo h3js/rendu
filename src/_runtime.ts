@@ -1,19 +1,42 @@
-// Shared prelude injected before the compiled template body.
-// Provides `echo()` (chunk collector) and an inlined `htmlspecialchars()` so
-// that compiled templates can be rendered without a render context.
-// `htmlspecialchars` is declared as a function declaration (function scoped) so
-// a `const { htmlspecialchars } = __context__` inside the (block scoped) body
-// shadows it instead of colliding with it.
-const prelude = /* js */ `const __chunks__ = [];
-const echo = (chunk) => { __chunks__.push(chunk); };
-const __htmlEscapes__ = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-function htmlspecialchars(s) {
-  return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c);
-}
-`;
+/**
+ * Runtime helpers that can be inlined before the compiled template body.
+ *
+ * Each helper is a self-contained, single line snippet so the prelude always spans
+ * exactly one line no matter which helpers are included (keeps `preserveLines`
+ * line offsets constant). `echo` is always required, the other helpers are only
+ * injected when the compiled body references them (see `runtimePrelude`).
+ *
+ * `htmlspecialchars` is declared as a function declaration (function scoped) so a
+ * `const { htmlspecialchars } = __context__` inside the (block scoped) body shadows
+ * it instead of colliding with it.
+ */
+// oxfmt-ignore
+export const runtimeHelpers = {
+  echo: /* js */ `const __chunks__ = []; const echo = (chunk) => { __chunks__.push(chunk); };`,
+  htmlspecialchars: /* js */ `const __htmlEscapes__ = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }; function htmlspecialchars(s) { return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c); }`,
+} as const;
 
-export function runtimeStream(body: string) {
-  return /* js */ `${prelude}${body};
+export type RuntimeHelper = keyof typeof runtimeHelpers;
+
+/**
+ * Build the prelude for a compiled template body, only including the optional helpers
+ * that the body references (a simple word match, a false positive only costs an unused
+ * helper). `exclude` lists helpers that are provided by the context instead.
+ */
+export function runtimePrelude(body: string, exclude: Iterable<string> = []): string {
+  const excluded = new Set(exclude);
+  const helpers: string[] = [runtimeHelpers.echo];
+  // Note: helper names must be plain identifiers for the `\b` word match to work.
+  for (const [name, code] of Object.entries(runtimeHelpers)) {
+    if (name !== "echo" && !excluded.has(name) && new RegExp(`\\b${name}\\b`).test(body)) {
+      helpers.push(code);
+    }
+  }
+  return helpers.join(" ") + "\n";
+}
+
+export function runtimeStream(body: string, exclude?: Iterable<string>) {
+  return /* js */ `${runtimePrelude(body, exclude)}${body};
 function concatStreams(chunks) {
   const encoder = new TextEncoder();
   let activeReader;
@@ -67,8 +90,8 @@ return concatStreams(__chunks__);
 `;
 }
 
-export function runtimeText(body: string) {
-  return /* js */ `${prelude}${body};
+export function runtimeText(body: string, exclude?: Iterable<string>) {
+  return /* js */ `${runtimePrelude(body, exclude)}${body};
 let __out__ = "";
 for (let chunk of __chunks__) {
   if (typeof chunk === 'function') {

@@ -3,10 +3,6 @@ async function anonymous(__context__) {
   const echo = (chunk) => {
     __chunks__.push(chunk);
   };
-  const __htmlEscapes__ = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  function htmlspecialchars(s) {
-    return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c);
-  }
   with (__context__) {
     echo("Hello, ");
     if (name) echo(await name);

@@ -32,7 +32,12 @@ Converts template syntax to normalized `<?...?>` tags, then tokenizes:
 
 ### Runtime (`_runtime.ts`)
 
-Inlined JS code (not imported at runtime). Two variants:
+Inlined JS code (not imported at runtime).
+
+- **`runtimeHelpers`**: Table of single-line helper snippets (`echo`, `htmlspecialchars`)
+- **`runtimePrelude(body, exclude)`**: Always emits `echo`; other helpers are only emitted when the compiled body references them and they are not in `exclude` (the compiler passes `contextKeys`). The prelude is always one line so `preserveLines` offsets stay constant
+
+Two variants:
 
 - **`runtimeStream`**: Collects chunks, returns `ReadableStream` with `concatStreams()`
 - **`runtimeText`**: Collects chunks, awaits promises, concatenates to string
