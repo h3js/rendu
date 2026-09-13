@@ -68,6 +68,16 @@ describe("render", () => {
       expect(ctx.$RESPONSE.status).toBe(301);
       expect(ctx.$RESPONSE.headers.get("location")).toBe("/other");
     });
+
+    it("resets the status text and percent-encodes the location", () => {
+      const ctx = createRenderContext({ request: request() });
+      ctx.$RESPONSE.statusText = "Custom";
+      ctx.redirect(" /search?q=ü&r=%C3%BC 100%25#€\n");
+      expect(ctx.$RESPONSE.statusText).toBe("");
+      expect(ctx.$RESPONSE.headers.get("location")).toBe(
+        "/search?q=%C3%BC&r=%C3%BC%20100%25#%E2%82%AC",
+      );
+    });
   });
 
   describe("renderToResponse", () => {
@@ -101,6 +111,13 @@ describe("render", () => {
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toBe("/login");
       expect(response.headers.getSetCookie()).toEqual(["session=1"]);
+    });
+
+    it("does not pair a changed status with an OK status text", async () => {
+      const template = compileTemplate(`<? $RESPONSE.status = 404 ?>`, { stream: false });
+      const response = await renderToResponse(template, { request: request() });
+      expect(response.status).toBe(404);
+      expect(response.statusText).toBe("");
     });
 
     it("rejects setCookie and redirect once the response head is sent", async () => {

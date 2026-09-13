@@ -120,7 +120,8 @@ export function createRenderContext(options: RenderOptions): RenderContext {
 export function createRenderResponse(): RenderResponse {
   return {
     status: 200,
-    statusText: "OK",
+    // Empty (like `new Response()`) so a changed `status` never goes out as e.g. `404 OK`.
+    statusText: "",
     headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }),
   };
 }
@@ -155,7 +156,10 @@ export function createRedirect(response: RenderResponse): RenderContext["redirec
   return (to, status = 302) => {
     assertOpen(response, "redirect");
     response.status = status;
-    response.headers.set("Location", to);
+    response.statusText = "";
+    // Percent-encode what cannot go on the wire (non-ASCII, spaces, controls) but keep existing
+    // `%XX` escapes as they are.
+    response.headers.set("Location", to.trim().replace(/[^\x21-\x7E]+/g, encodeURI));
   };
 }
 
