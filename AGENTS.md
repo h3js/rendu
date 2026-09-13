@@ -8,8 +8,8 @@ JavaScript Hypertext Preprocessor — a lightweight toolkit for mixing HTML and 
 src/
   parser.ts     # Tokenizer: template string → Token[] (text | code | expr)
   compiler.ts   # Token[] → async function body string → AsyncFunction
-  _runtime.ts   # Inlined JS runtime: echo/stream/text concatenation, defer() and the
-                #   <template for> patch flush + client fallback
+  _runtime.ts   # Inlined JS runtime: helper prelude, echo/stream/text concatenation
+  _defer.ts     # defer() snippets, <template for> patch flush/cancel fragments, client fallback
   render.ts     # Request/response layer: cookies, headers, redirects, HTML escaping
   module.ts     # compileTemplateToModule(): ESM codegen importing only used context helpers
   cli.ts        # CLI entry: serves static files with srvx, renders .html as templates
@@ -38,7 +38,8 @@ Inlined JS code (not imported at runtime).
 
 - **`runtimeHelpers`**: Table of single-line helper snippets (`echo`, `htmlspecialchars`)
 - **`runtimePrelude(body, exclude, helpers)`**: Always emits `echo`; other helpers are only emitted when the compiled body references them and they are not in `exclude` (the compiler passes `contextKeys`). The prelude is always one line so `preserveLines` offsets stay constant
-- **`defer`** is a mode-specific helper (streaming: queues a `<template for>` patch; text: renders in place), inlined like the others only when referenced. It is a single line too, so explain it in the TS comment, not inside the snippet
+- **`defer`** is a mode-specific helper (streaming: queues a `<template for>` patch; text: renders in place), inlined like the others only when referenced. It lives in `_defer.ts` together with the `concatStreams()` fragments that flush (`deferFlush`) and cancel (`deferCancel`) deferred values and the client fallback script
+- Generated code carries no comments (they would ship in every compiled template and to the browser): explain it in the TS comment, not inside the snippet
 
 Two variants:
 
@@ -98,7 +99,7 @@ Snapshots live in `test/snapshots/`.
 - [`.agents/html-template-for.md`](./.agents/html-template-for.md) — the `<template for>` /
   processing instruction spec that `defer()` targets, transcribed from
   [whatwg/html#11818](https://github.com/whatwg/html/pull/11818). Read this before touching
-  marker emission in `_runtime.ts` or the `<?` handling in `parser.ts`.
+  marker emission in `_defer.ts` or the `<?` handling in `parser.ts`.
 
 ## Template Syntax Reference
 

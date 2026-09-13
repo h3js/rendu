@@ -12,21 +12,15 @@ async function anonymous(__context__) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let activeReader;
-    // Readers acquired to race a deferred stream on its first chunk. They hold a lock on the
-    // upstream body, so cancel() has to release them itself.
     const openReaders = new Set();
     let cancelled = false;
     return new ReadableStream({
       async pull(controller) {
-        // Content written between a <template for> start and end tag runs through a guard:
-        // an unbalanced </template> in a deferred value would otherwise close the patch
-        // envelope early and relocate the rest of the value to document level.
         let inPatch = false;
         let patchTail = "";
         const guard = (text) => {
           text = patchTail + text;
           patchTail = "";
-          // Hold back a trailing fragment that could be the head of a split "</template".
           const i = text.lastIndexOf("<");
           if (
             i >= 0 &&
@@ -84,7 +78,6 @@ async function anonymous(__context__) {
             enqueue(chunk);
           }
         };
-        // Drain a reader whose first chunk has already been read (see the first-chunk race).
         const drain = async (reader, first) => {
           activeReader = reader;
           try {
@@ -104,18 +97,10 @@ async function anonymous(__context__) {
           await write(chunk);
         }
 
-        // Deferred content, flushed in completion order (not source order) so a slow
-        // patch never blocks a fast one. Each is emitted as a <template for> patch
-        // targeting the marker that defer() left behind.
         let index = 0;
-        // Chunks appended from here on come from echo() calls made while a deferred value
-        // was being produced, so they belong to that value's patch.
         let chunkIndex = chunks.length;
         let helperSent = false;
         const pending = new Map();
-        // Names already patched, used to detect a marker that was nested inside another
-        // patch's content: it only enters the document when *that* patch is applied, so its
-        // own patch went out too early and the browser drops it.
         const flushed = new Set();
         const track = () => {
           while (index < deferred.length) {
@@ -132,11 +117,6 @@ async function anonymous(__context__) {
           if (!settled.failed && settled.reader === undefined) {
             const body = settled.value instanceof Response ? settled.value.body : settled.value;
             if (body instanceof ReadableStream && pending.size > 0) {
-              // A <template>'s content has to be contiguous on the wire, so whichever patch
-              // opens first holds the loop until it ends. A stream is therefore only as ready
-              // as its first chunk: racing it on merely *being* a stream lets one that has
-              // produced nothing claim the loop ahead of a finished sibling, and parking it
-              // behind every pending value pins it to the slowest one. Race the first read.
               const reader = body.getReader();
               openReaders.add(reader);
               pending.set(
@@ -150,9 +130,6 @@ async function anonymous(__context__) {
             }
           }
           if (settled.failed) {
-            // A failed patch is silent by design in <template for>: the placeholder stays and
-            // the document keeps streaming. The head and shell are already committed, so
-            // there is no status left to fail with — report it instead of killing the body.
             console.error(
               "[rendu] deferred value " + settled.entry.name + " failed:",
               settled.error,
@@ -176,7 +153,7 @@ async function anonymous(__context__) {
           if (!helperSent) {
             helperSent = true;
             enqueue(
-              '<script>window.__renduPatch=(typeof HTMLTemplateElement!=="undefined"&&"htmlFor" in HTMLTemplateElement.prototype)?function(){}:function(){var t=document.currentScript&&document.currentScript.previousElementSibling;\nif(!t||t.tagName!=="TEMPLATE"||!t.hasAttribute("for"))return;\ntry{\n  var name=t.getAttribute("for");\n  if(!name)return;\n  // A marker is a ProcessingInstruction where those are parsed, and a bogus comment\n  // where they are not; normalize both to the same leading-question-mark shape.\n  var data=function(n){return n.target?"?"+n.target+" "+n.data:n.data};\n  var w=document.createTreeWalker(document,192),n,m,start=null,end=null;\n  while((n=w.nextNode())){\n    m=/^\\?(marker|start)\\s+name=["\']?([^"\'\\s?>]+)/.exec(data(n));\n    if(m&&m[2]===name){start=n;if(m[1]==="marker")end=n;break;}\n  }\n  if(!start)return;\n  if(end!==start){\n    for(var s=start.nextSibling,depth=0,d;s;s=s.nextSibling){\n      if(s.nodeType!==7&&s.nodeType!==8)continue;\n      d=data(s);\n      if(/^\\?start\\b/.test(d))depth++;\n      else if(/^\\?end\\b/.test(d)){if(depth===0){end=s;break;}depth--;}\n    }\n  }\n  var parent=start.parentNode;\n  if(!parent)return;\n  // end===null: no matching <?end>, so the range runs to the end of the parent.\n  if(end!==start){\n    for(var c=start.nextSibling,nx;c&&c!==end;c=nx){nx=c.nextSibling;parent.removeChild(c);}\n  }\n  parent.insertBefore(t.content,end||null);\n  if(end&&end!==start)parent.removeChild(end);\n  parent.removeChild(start);\n}finally{\n  // A failed patch is silent by design: never leave the inert template behind.\n  t.remove();\n}};<\/script>',
+              '<script>window.__renduPatch=(typeof HTMLTemplateElement!=="undefined"&&"htmlFor" in HTMLTemplateElement.prototype)?function(){}:function(){var t=document.currentScript&&document.currentScript.previousElementSibling;\nif(!t||t.tagName!=="TEMPLATE"||!t.hasAttribute("for"))return;\ntry{\n  var name=t.getAttribute("for");\n  if(!name)return;\n  var data=function(n){return n.target?"?"+n.target+" "+n.data:n.data};\n  var w=document.createTreeWalker(document,192),n,m,start=null,end=null;\n  while((n=w.nextNode())){\n    m=/^\\?(marker|start)\\s+name=["\']?([^"\'\\s?>]+)/.exec(data(n));\n    if(m&&m[2]===name){start=n;if(m[1]==="marker")end=n;break;}\n  }\n  if(!start)return;\n  if(end!==start){\n    for(var s=start.nextSibling,depth=0,d;s;s=s.nextSibling){\n      if(s.nodeType!==7&&s.nodeType!==8)continue;\n      d=data(s);\n      if(/^\\?start\\b/.test(d))depth++;\n      else if(/^\\?end\\b/.test(d)){if(depth===0){end=s;break;}depth--;}\n    }\n  }\n  var parent=start.parentNode;\n  if(!parent)return;\n  if(end!==start){\n    for(var c=start.nextSibling,nx;c&&c!==end;c=nx){nx=c.nextSibling;parent.removeChild(c);}\n  }\n  parent.insertBefore(t.content,end||null);\n  if(end&&end!==start)parent.removeChild(end);\n  parent.removeChild(start);\n}finally{\n  t.remove();\n}};<\/script>',
             );
           }
           enqueue('<template for="' + settled.entry.name + '">');
@@ -209,7 +186,6 @@ async function anonymous(__context__) {
         activeReader = undefined;
         for (const reader of openReaders) reader.cancel(reason).catch(() => {});
         openReaders.clear();
-        // Deferred values that were queued but never written hold their own upstream bodies.
         for (const entry of deferred) {
           entry.settled?.then(
             (settled) => {
