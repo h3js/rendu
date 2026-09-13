@@ -2,6 +2,7 @@ import { parse as parseCookies, serialize as serializeCookie } from "cookie-es";
 import type { CookieSerializeOptions } from "cookie-es";
 import type { CompiledTemplate } from "./compiler.ts";
 import { FastResponse } from "srvx";
+import { htmlspecialchars } from "./runtime/prelude.ts";
 
 export interface RenderOptions {
   request?: Request;
@@ -72,7 +73,7 @@ export type RenderResponse = {
 };
 
 export type RenderContext = {
-  htmlspecialchars: (s: string) => string;
+  htmlspecialchars: typeof htmlspecialchars;
   setCookie: (name: string, value: string, options?: CookieSerializeOptions) => void;
   redirect: (url: string, status?: number) => void;
   $REQUEST?: Request;
@@ -204,10 +205,4 @@ export function createRenderCookies(req: Request | undefined): Readonly<Record<s
       return { value: all[prop], enumerable: true, configurable: true, writable: false };
     },
   });
-}
-
-function htmlspecialchars(s: string): string {
-  // oxfmt-ignore
-  const htmlSpecialCharsMap: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  return String(s).replace(/[&<>"']/g, (c) => htmlSpecialCharsMap[c] || c);
 }

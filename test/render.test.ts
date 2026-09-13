@@ -71,6 +71,15 @@ describe("render", () => {
   });
 
   describe("renderToResponse", () => {
+    it("escapes non-string values with the context htmlspecialchars", async () => {
+      // The context helper shadows the inlined one, so it must resolve values the same way.
+      const template = compileTemplate(`[{{ nothing }}][{{ promise }}]`, { stream: false });
+      const response = await renderToResponse(template, {
+        context: { nothing: null, promise: Promise.resolve("<b>") },
+      });
+      expect(await response.text()).toBe("[][&lt;b&gt;]");
+    });
+
     it("returns the rendered body with the prepared headers", async () => {
       const template = compileTemplate(
         `Hello, <?= $COOKIES["user"] ?> (<?= $METHOD ?> <?= $URL.pathname ?>)`,

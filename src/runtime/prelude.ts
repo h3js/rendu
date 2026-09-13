@@ -45,6 +45,11 @@ export { __chunks__, __sink__, echo };
  *
  * Declared as a function declaration (function scoped) so a `const { htmlspecialchars } =
  * __context__` inside the (block scoped) body shadows it instead of colliding with it.
+ *
+ * `{{ value }}`: `null` / `undefined` are empty, a function is wrapped in one that escapes its
+ * result (the runtime still calls it, so what it echoes lands in place, unescaped) and a promise
+ * (or a function's promise result) is escaped once it resolves (a rejection is handled like any
+ * echoed promise). Anything else, including a `Response`, stream or bytes, is escaped as a string.
  */
 
 const __htmlEscapes__: Record<string, string> = {
@@ -55,8 +60,22 @@ const __htmlEscapes__: Record<string, string> = {
   "'": "&#39;",
 };
 
-function htmlspecialchars(s: unknown): string {
-  return String(s).replace(/[&<>"']/g, (c) => __htmlEscapes__[c] || c);
+function htmlspecialchars(value: string | number | boolean | bigint | null | undefined): string;
+function htmlspecialchars(value: unknown): unknown;
+function htmlspecialchars(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(/[&<>"']/g, (c) => __htmlEscapes__[c]!);
+  }
+  // `stage` follows the runtime: a function is called first, then a promise is awaited.
+  const escape = (v: unknown, stage: number): unknown =>
+    v == null
+      ? ""
+      : stage < 1 && typeof v === "function"
+        ? () => escape(v(), 1)
+        : stage < 2 && typeof (v as PromiseLike<unknown>).then === "function"
+          ? Promise.resolve(v).then((resolved) => escape(resolved, 2))
+          : htmlspecialchars(String(v));
+  return escape(value, 0);
 }
 
 export { htmlspecialchars };

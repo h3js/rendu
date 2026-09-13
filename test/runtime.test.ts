@@ -234,6 +234,33 @@ describe("runtime", () => {
       expect(await renderStream("{{ title }}", { title: "<b>" })).toBe("&lt;b&gt;");
     });
 
+    it("escapes the values <?= ?> would write", async () => {
+      // null/undefined are empty, functions are called and promises awaited, then escaped.
+      const context = { promise: Promise.resolve("<p>"), empty: Promise.resolve(null) };
+      const template =
+        `<?js const fn = () => { echo("<raw>"); return Promise.resolve("<fn>") } ?>` +
+        `[{{ null }}][{{ undefined }}][{{ 0 }}][{{ fn }}][{{ promise }}][{{ empty }}]`;
+      const expected = "[][][0][<raw>&lt;fn&gt;][&lt;p&gt;][]";
+      expect(await renderText(template, context)).toBe(expected);
+      expect(await renderStream(template, context)).toBe(expected);
+    });
+
+    it("does not leave an escaped promise's early rejection unhandled", async () => {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      try {
+        const context = { slow: () => new Promise((r) => setTimeout(() => r("slow"), 20)) };
+        const template = `A{{ slow() }}B{{ Promise.reject(new Error("boom")) }}`;
+        await expect(renderText(template, context)).rejects.toThrow("boom");
+        await expect(renderStream(template, context)).rejects.toThrow("boom");
+        await new Promise((r) => setTimeout(r, 10));
+        expect(unhandled).toEqual([]);
+      } finally {
+        process.off("unhandledRejection", onUnhandled);
+      }
+    });
+
     it("is available in contextKeys mode", async () => {
       const fn = compileTemplate("{{ name }}", { stream: false, contextKeys: ["name"] });
       expect(await fn({ name: "<b>" })).toBe("&lt;b&gt;");

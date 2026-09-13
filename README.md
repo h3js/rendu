@@ -313,6 +313,8 @@ The `htmlspecialchars()` function is available for escaping HTML content:
 > [!TIP]
 > When using curly `{{ }}` syntax, `htmlspecialchars` will be automatically applied.
 
+`htmlspecialchars(value)`: `null` and `undefined` become `""`, a promise resolves to its escaped value, and a function is wrapped so that its return value is escaped when the template calls it (but not what it writes with `echo()`). Any other value, including a `Response`, stream or bytes, is escaped as `String(value)`. (`defer()` markers are not special: write `defer()` with `<?= ?>`, as above.)
+
 ```html
 <div><?= htmlspecialchars(userInput) ?></div>
 ```

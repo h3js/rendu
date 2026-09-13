@@ -7,7 +7,7 @@ export const echo =
 
 /** `htmlspecialchars()` from `prelude.ts` */
 export const htmlspecialchars =
-  'const __htmlEscapes__={"&":`&amp;`,"<":`&lt;`,">":`&gt;`,\'"\':`&quot;`,"\'":`&#39;`};function htmlspecialchars(e){return String(e).replace(/[&<>"\']/g,e=>__htmlEscapes__[e]||e)};';
+  'const __htmlEscapes__={"&":`&amp;`,"<":`&lt;`,">":`&gt;`,\'"\':`&quot;`,"\'":`&#39;`};function htmlspecialchars(e){if(typeof e==`string`)return e.replace(/[&<>"\']/g,e=>__htmlEscapes__[e]);let t=(e,n)=>e==null?``:n<1&&typeof e==`function`?()=>t(e(),1):n<2&&typeof e.then==`function`?Promise.resolve(e).then(e=>t(e,2)):htmlspecialchars(String(e));return t(e,0)};';
 
 /** `defer()` from `defer.ts` */
 export const deferStream =
