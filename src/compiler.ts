@@ -111,7 +111,7 @@ export function compileTemplateToString(
           }
           parts.push(code);
         } else {
-          parts.push(`echo(${JSON.stringify(token.contents)})`);
+          parts.push(`echo(${JSON.stringify(token.contents)});`);
         }
         break;
       }
@@ -128,7 +128,7 @@ export function compileTemplateToString(
         } else {
           // Wrapped in parens + newlines so trailing line comments and
           // multi-line expressions do not break the generated code.
-          parts.push(`echo((\n${token.contents}\n))`);
+          parts.push(`echo((\n${token.contents}\n));`);
         }
         break;
       }
@@ -137,7 +137,8 @@ export function compileTemplateToString(
           borrowed++;
           parts.push(`${token.contents}\n`);
         } else {
-          parts.push(token.contents);
+          // Trailing newline terminates a trailing `//` line comment.
+          parts.push(preserveLines ? token.contents : `${token.contents}\n`);
         }
         break;
       }

@@ -47,6 +47,23 @@ describe("compileTemplater", () => {
         "snapshots/compiled-stream-defer.js",
       );
     });
+
+    it("separates statements between tags", async () => {
+      const cases = {
+        "a<? // note ?>": "a",
+        "a<? [1, 2].forEach(i => echo(i)) ?>": "a12",
+        "<?= 'x' ?><? (() => echo('y'))() ?>": "xy",
+        "<? if (ok) ?>yes<? // note ?>": "yes",
+      };
+      for (const [template, expected] of Object.entries(cases)) {
+        for (const opts of [{}, { contextKeys: ["ok"] }, { preserveLines: true }]) {
+          for (const stream of [false, true]) {
+            const fn = compileTemplate(template, { stream, ...opts });
+            expect(await new Response(await fn({ ok: true })).text()).toBe(expected);
+          }
+        }
+      }
+    });
   });
 });
 
