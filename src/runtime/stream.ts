@@ -1,4 +1,4 @@
-import { createWrite, discard, type StreamState } from "./_shared.ts";
+import { createWrite, discard, toBytes, type StreamState } from "./_shared.ts";
 
 /**
  * Streaming runtime for a template without `defer()`: `concatStreams()` writes the chunks in
@@ -27,9 +27,7 @@ export default function concatStreams(chunks: unknown[]): ReadableStream<Uint8Ar
     async pull(controller) {
       const enqueue = (value: unknown) => {
         if (state.cancelled) return;
-        controller.enqueue(
-          ArrayBuffer.isView(value) ? (value as Uint8Array) : encoder.encode(String(value)),
-        );
+        controller.enqueue(toBytes(value) ?? encoder.encode(String(value)));
       };
       const write = createWrite(state, enqueue);
       try {

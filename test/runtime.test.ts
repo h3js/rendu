@@ -120,6 +120,28 @@ describe("runtime", () => {
       expect(await renderText(cases[7]![0], cases[7]![1]())).toBe("€");
     });
 
+    it("writes any typed array, DataView or ArrayBuffer as its bytes, like text mode", async () => {
+      const bytes = new Uint8Array([0x78, 0xe2, 0x82, 0xac, 0x41, 0x42, 0x79]);
+      const context = () => ({
+        a: new Uint16Array([0x4141]),
+        b: new DataView(bytes.buffer, 1, 3),
+        c: new TextEncoder().encode("hé").buffer,
+        d: bytes.subarray(4, 6),
+        e: streamOf([new Int8Array([0x43]), new Uint8ClampedArray([0x44]).buffer]),
+      });
+      const expected = "AA|€|hé|AB|CD";
+      // The main document, with and without defer() (a runtime of its own), and a patch.
+      const main = "<?= a ?>|<?= b ?>|<?= c ?>|<?= d ?>|<?= e ?>";
+      expect(await renderText(main, context())).toBe(expected);
+      expect(await renderStream(main, context())).toBe(expected);
+      expect(await renderStream(main + "<?= defer('') ?>", context())).toContain(expected);
+      // A function the value resolves to is called inside the patch, so what it echoes lands there.
+      const deferred =
+        "<?= defer(Promise.resolve(() => { for (const v of [a, '|', b, '|', c, '|', d, '|']) echo(v); return e })) ?>";
+      expect(await renderText(deferred, context())).toBe(expected);
+      expect(await renderStream(deferred, context())).toContain(`">${expected}</template>`);
+    });
+
     it("decodes bytes in a defer() patch like streaming", async () => {
       const template = "<?= defer(a) ?>|<?= defer(b) ?>";
       const context = () => ({

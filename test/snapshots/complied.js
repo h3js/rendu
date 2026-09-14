@@ -20,63 +20,69 @@ async function anonymous(__context__) {
     }
     function t(t) {
       let n = (__sink__ = []),
-        i;
+        r;
       try {
-        i = t();
+        r = t();
       } catch (e) {
-        for (let t of n) r(t, e);
+        for (let t of n) i(t, e);
         throw e;
       } finally {
         __sink__ = void 0;
       }
-      return (n.length > 0 && e(i) && i.then(void 0, () => {}), [i, n]);
+      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
     }
-    function n(e, t) {
-      if (ArrayBuffer.isView(t)) return e.decode(t, { stream: !0 });
-      let n = String(t);
-      return n && e.decode() + n;
+    function n(e) {
+      if (e instanceof Uint8Array) return e;
+      if (ArrayBuffer.isView(e)) return new Uint8Array(e.buffer, e.byteOffset, e.byteLength);
+      if (e instanceof ArrayBuffer) return new Uint8Array(e);
     }
-    function r(t, n) {
+    function r(e, t) {
+      let r = n(t);
+      if (r) return e.decode(r, { stream: !0 });
+      let i = String(t);
+      return i && e.decode() + i;
+    }
+    function i(t, n) {
       if (e(t)) {
         t.then(
-          (e) => r(e, n),
+          (e) => i(e, n),
           () => {},
         );
         return;
       }
-      let i = t instanceof Response ? t.body : t;
-      i instanceof ReadableStream && !i.locked && i.cancel(n).catch(() => {});
+      let r = t instanceof Response ? t.body : t;
+      r instanceof ReadableStream && !r.locked && r.cancel(n).catch(() => {});
     }
-    async function i(a, o) {
+    async function a(n, o) {
       let s = !o;
       o ??= new TextDecoder();
       let c = ``;
-      for (let s of a)
+      for (let s of n)
         try {
           if (typeof s == `function`) {
             let [e, n] = t(s);
-            ((s = e), n.length > 0 && (c += await i(n, o)));
+            ((s = e), n.length > 0 && (c += await a(n, o)));
           }
           if ((e(s) && (s = await s), s instanceof Response && (s = s.body), s == null)) continue;
           if (s instanceof ReadableStream) {
             let e = s.getReader();
             try {
               for (;;) {
-                let { value: t, done: r } = await e.read();
-                if (r) break;
-                c += n(o, t);
+                let { value: t, done: n } = await e.read();
+                if (n) break;
+                c += r(o, t);
               }
             } finally {
               e.releaseLock();
             }
-          } else c += n(o, s);
+          } else c += r(o, s);
         } catch (e) {
-          for (let t of [s, ...a]) r(t, e);
+          for (let t of [s, ...n]) i(t, e);
           throw e;
         }
       return s ? c + o.decode() : c;
     }
-    return i;
+    return a;
   })();
   __sink__ = void 0;
   return __render__(__chunks__);

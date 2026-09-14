@@ -19,93 +19,98 @@ async function anonymous(__context__) {
       return typeof e?.then == `function`;
     }
     function t(t) {
-      let r = (__sink__ = []),
+      let n = (__sink__ = []),
         i;
       try {
         i = t();
       } catch (e) {
-        for (let t of r) n(t, e);
+        for (let t of n) r(t, e);
         throw e;
       } finally {
         __sink__ = void 0;
       }
-      return (r.length > 0 && e(i) && i.then(void 0, () => {}), [i, r]);
+      return (n.length > 0 && e(i) && i.then(void 0, () => {}), [i, n]);
     }
-    function n(t, r) {
+    function n(e) {
+      if (e instanceof Uint8Array) return e;
+      if (ArrayBuffer.isView(e)) return new Uint8Array(e.buffer, e.byteOffset, e.byteLength);
+      if (e instanceof ArrayBuffer) return new Uint8Array(e);
+    }
+    function r(t, n) {
       if (e(t)) {
         t.then(
-          (e) => n(e, r),
+          (e) => r(e, n),
           () => {},
         );
         return;
       }
       let i = t instanceof Response ? t.body : t;
-      i instanceof ReadableStream && !i.locked && i.cancel(r).catch(() => {});
+      i instanceof ReadableStream && !i.locked && i.cancel(n).catch(() => {});
     }
-    function r(r, i) {
+    function i(n, i) {
       let a = async (o) => {
-        if (typeof o == `function` && !r.cancelled) {
-          let [e, r] = t(o);
+        if (typeof o == `function` && !n.cancelled) {
+          let [e, n] = t(o);
           o = e;
           try {
-            for (let e of r) await a(e);
+            for (let e of n) await a(e);
           } catch (t) {
-            for (let i of [...r, e]) n(i, t);
+            for (let i of [...n, e]) r(i, t);
             throw t;
           }
         }
-        if ((e(o) && !r.cancelled && (o = await o), r.cancelled)) {
-          n(o, r.reason);
+        if ((e(o) && !n.cancelled && (o = await o), n.cancelled)) {
+          r(o, n.reason);
           return;
         }
         if ((o instanceof Response && (o = o.body), o != null)) {
           if (o instanceof ReadableStream) {
             let e = o.getReader();
-            r.activeReader = e;
+            n.activeReader = e;
             try {
               for (;;) {
-                let { value: t, done: n } = await e.read();
-                if (n) break;
-                if (r.cancelled) return;
+                let { value: t, done: r } = await e.read();
+                if (r) break;
+                if (n.cancelled) return;
                 i(t);
               }
             } finally {
-              ((r.activeReader = void 0), e.releaseLock());
+              ((n.activeReader = void 0), e.releaseLock());
             }
           } else i(o);
         }
       };
       return a;
     }
-    function i(e) {
+    function a(e) {
       let t = new TextEncoder(),
-        i = { cancelled: !1, activeReader: void 0 },
-        a = (t) => {
-          ((i.cancelled = !0), (i.reason = t));
-          let r = i.activeReader;
-          i.activeReader = void 0;
-          for (let r of e) n(r, t);
-          return r?.cancel(t);
+        a = { cancelled: !1, activeReader: void 0 },
+        o = (t) => {
+          ((a.cancelled = !0), (a.reason = t));
+          let n = a.activeReader;
+          a.activeReader = void 0;
+          for (let n of e) r(n, t);
+          return n?.cancel(t);
         };
       return new ReadableStream({
-        async pull(n) {
-          let o = r(i, (e) => {
-            i.cancelled || n.enqueue(ArrayBuffer.isView(e) ? e : t.encode(String(e)));
+        async pull(r) {
+          let s = i(a, (e) => {
+            a.cancelled || r.enqueue(n(e) ?? t.encode(String(e)));
           });
           try {
             for (let t of e) {
-              if (i.cancelled) return;
-              await o(t);
+              if (a.cancelled) return;
+              await s(t);
             }
           } catch (e) {
-            throw (a(e), e);
+            throw (o(e), e);
           }
-          i.cancelled || n.close();
+          a.cancelled || r.close();
         },
-        cancel: a,
+        cancel: o,
       });
     }
-    return i;
+    return a;
   })();
   __sink__ = void 0;
   return concatStreams(__chunks__);

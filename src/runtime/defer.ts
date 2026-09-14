@@ -1,4 +1,4 @@
-import { createWrite, decodeChunk, discard, type StreamState } from "./_shared.ts";
+import { createWrite, decodeChunk, discard, toBytes, type StreamState } from "./_shared.ts";
 
 /**
  * `defer()`: out-of-order streaming via `<template for>` patches. Spec transcribed in
@@ -619,8 +619,8 @@ export default function concatStreams(
       /**
        * The patch-aware writer.
        *
-       * - Outside a patch, byte chunks pass through as they are and text is scanned for markers
-       *   once any `defer()` has been called (see `createMarkerScan()`).
+       * - Outside a patch, byte chunks pass through (as a `Uint8Array`, see `toBytes()`) and text
+       *   is scanned for markers once any `defer()` has been called (see `createMarkerScan()`).
        * - Inside a patch, output is decoded and runs through `guard()` (`decodeChunk()`: a
        *   non-empty string chunk first flushes the decoder, so bytes still pending from a previous
        *   chunk go out ahead of it, not after).
@@ -633,7 +633,8 @@ export default function concatStreams(
       const enqueue = (value: unknown) => {
         if (state.cancelled) return;
         if (patchName === undefined) {
-          if (ArrayBuffer.isView(value)) controller.enqueue(value as Uint8Array);
+          const bytes = toBytes(value);
+          if (bytes) controller.enqueue(bytes);
           else emit(String(value));
           return;
         }
