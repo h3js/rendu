@@ -32,6 +32,7 @@ Converts template syntax to normalized `<?...?>` tags, then tokenizes:
 - Generates `echo()` calls for text/expr tokens, raw code for code tokens
 - Two modes: `stream: true` (returns `ReadableStream`) / `stream: false` (returns `string`)
 - `contextKeys` option uses destructuring instead of `with()` for strict mode compatibility
+- `transformImports()` rewrites static `import` declarations in code tokens (line start or after `;`, lexical regex) to `const { ... } = await import(...)`, keeping line breaks for `preserveLines`. `import()` in `new Function` code fails under vitest (no vm import callback): test compiled output as a data-URL module
 
 ### Runtime (`runtime.ts`, `runtime/`)
 

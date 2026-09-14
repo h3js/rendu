@@ -166,7 +166,7 @@ function pushTextTokens(tokens: Token[], text: string): void {
 }
 
 /** Only the line breaks of `text` (to keep line numbers when dropping template syntax). */
-const lineBreaks = (text: string): string => text.replace(/[^\n\r\u2028\u2029]+/g, "");
+export const lineBreaks = (text: string): string => text.replace(/[^\n\r\u2028\u2029]+/g, "");
 
 /** JS line terminators, which end `//` comments and `"` / `'` strings. */
 const lineTerminators = "\n\r\u2028\u2029";

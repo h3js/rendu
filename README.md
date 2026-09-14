@@ -157,6 +157,20 @@ Use `<script server>` to execute JavaScript on the server where it appears:
 </script>
 ```
 
+Static `import` declarations (at the start of a line or after a `;`) are rewritten to `await import()` in place, so server code can import modules:
+
+```html
+<script server>
+  import { readFile } from "node:fs/promises";
+  const pkg = JSON.parse(await readFile("package.json", "utf8"));
+</script>
+```
+
+Unlike ES module imports, they are not hoisted (a name cannot be used before its import) and run on each render (modules are cached after the first import). With `compileTemplateToModule`, specifiers resolve against the generated module. With `compileTemplate` and the CLI, they resolve against rendu's own module, not the template file: use bare specifiers or absolute URLs there.
+
+> [!NOTE]
+> The rewrite is lexical: an `import` declaration inside a string or template literal (for example client module code built in a server script) is rewritten too.
+
 ### Output Expressions
 
 Use `{{ expression }}` for HTML-escaped output, or `{{{ expression }}}` or `<?= expression ?>` for unescaped (raw) output:

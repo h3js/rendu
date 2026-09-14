@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileTemplate, type CompileTemplateOptions } from "../src/compiler.ts";
+import {
+  compileTemplate,
+  compileTemplateToString,
+  transformImports,
+  type CompileTemplateOptions,
+} from "../src/compiler.ts";
 import { runtimeHelpers } from "../src/runtime.ts";
 import { format } from "oxfmt";
 
@@ -107,6 +112,76 @@ describe("compileTemplater", () => {
         }
       }
     });
+  });
+});
+
+describe("static imports", () => {
+  it("rewrites import declarations to awaited dynamic imports", () => {
+    const cases: Record<string, string> = {
+      'import "x"': 'await import("x");',
+      "import d from 'x';": "const { default: d } = await import('x');",
+      'import * as ns from "x"': 'const ns = await import("x");',
+      'import d, * as ns from "x"': 'const ns = await import("x"), { default: d } = ns;',
+      'import d, { a, b as c, "s-t" as e, } from "x"':
+        'const { default: d, a, b: c, "s-t": e } = await import("x");',
+      'import{a}from"x";import {} from "y"': 'const { a } = await import("x");await import("y");',
+      'import data from "./x.json" with { type: "json" }':
+        'const { default: data } = await import("./x.json", { with: { type: "json" } });',
+      'import {\r\n  a, // note\r\n  b /* c */,\r\n} from "x"':
+        'const { a, b } = await import("x");\r\n\r\n\r\n',
+      "import {\n  a,\n  b as c\n} from 'x'\nfoo()":
+        "const { a, b: c } = await import('x');\n\n\n\nfoo()",
+    };
+    for (const [code, expected] of Object.entries(cases)) {
+      expect(transformImports(code)).toBe(expected);
+    }
+    for (const code of [
+      "import.meta.url",
+      'await import("x")',
+      'importer from "x"',
+      "const o = { import: 1 }",
+      "echo(\"import x from 'y'\")",
+    ]) {
+      expect(transformImports(code)).toBe(code);
+    }
+  });
+
+  it("rewrites imports in linear time", () => {
+    const start = performance.now();
+    for (const code of [
+      "import\n" + "\n".repeat(100_000),
+      "import" + " \n".repeat(50_000),
+      ";import {".repeat(20_000),
+      "import d, { a } from ".repeat(10_000),
+    ]) {
+      transformImports(code);
+    }
+    // These took seconds with `\s*` (instead of `[ \t]*`) before `import`.
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it("renders templates with static imports", async () => {
+    const template = [
+      "<script server>",
+      '  import { join as joinPath } from "node:path";',
+      '  import path, * as ns from "node:path";',
+      "</script>",
+      "<? import { sep } from 'node:path' ?>",
+      "{{ joinPath('a', 'b') }} {{ path.join === ns.join }} {{ sep }}",
+    ].join("\n");
+    for (const preserveLines of [false, true]) {
+      for (const stream of [false, true]) {
+        // Loaded as a module: `import()` in `new Function` code has no import callback in vitest.
+        const code = compileTemplateToString(template, {
+          stream,
+          preserveLines,
+          contextKeys: ["sep"],
+        });
+        const url = `data:text/javascript,${encodeURIComponent(`export default ${code}`)}`;
+        const { default: fn } = await import(/* @vite-ignore */ url);
+        expect((await new Response(await fn({ sep: "ctx" })).text()).trim()).toBe("a/b true /");
+      }
+    }
   });
 });
 
@@ -219,6 +294,7 @@ describe("preserveLines", () => {
       [`<script\n  server\n>\n</script\n>\n${boom}`, 6],
       [`<script\n  server>\nthrow new Error("boom")\n</script>`, 3],
       [`<script server>const x = 1</script>\n${boom}`, 2],
+      [`<? if (!list) {\nimport {\n  join\n} from "node:path"\n} ?>\n${boom}`, 6],
       [`<? const a = 1 ?><?\nthrow new Error("boom")\n?>`, 2],
       [`<? const a = 1 ?><?= \n ${expr} ?>`, 2],
       [`<?= list // note ?><? const a = 1 ?>\n\n${boom}`, 3],

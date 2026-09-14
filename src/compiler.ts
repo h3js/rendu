@@ -1,4 +1,4 @@
-import { parseTemplate } from "./parser.ts";
+import { lineBreaks, parseTemplate } from "./parser.ts";
 import { runtimeStream, runtimeText } from "./runtime.ts";
 
 export type CompileTemplateOptions = {
@@ -166,13 +166,14 @@ export function compileTemplateToString(
         break;
       }
       case "code": {
+        const code = transformImports(token.contents);
         if (!preserveLines) {
           // Trailing newline terminates a trailing `//` line comment.
-          parts.push(`${token.contents}\n`);
-        } else if (endsOnFreshLine(token.contents)) {
-          parts.push(repayLeadingLineBreaks(token.contents));
+          parts.push(`${code}\n`);
+        } else if (endsOnFreshLine(code)) {
+          parts.push(repayLeadingLineBreaks(code));
         } else {
-          const contents = repayLeadingLineBreaks(token.contents);
+          const contents = repayLeadingLineBreaks(code);
           borrowed++;
           parts.push(`${contents}\n`);
         }
@@ -217,7 +218,67 @@ function toJSString(value: string): string {
   );
 }
 
-const identifierRe = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*$/u;
+const identifier = String.raw`[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*`;
+
+const identifierRe = /* @__PURE__ */ new RegExp(`^${identifier}$`, "u");
+
+/** A namespace (`* as ns`) or named (`{ a, b as c }`) import clause. */
+const namespaceOrNamed = String.raw`\*\s*as\s+${identifier}|\{[^{}]*\}`;
+
+/**
+ * A static import declaration at the start of a line or after a `;`: `import "x"`,
+ * `import d from "x"`, `import * as ns from "x"`, `import { a, b as c } from "x"`, the
+ * default + namespace / named combinations and a `with { ... }` attributes clause.
+ *
+ * Only spaces and tabs may precede `import` on its line (with `\s*`, each line of a run of
+ * blank lines would start a match attempt that scans the rest of the run), and braces
+ * never nest, so a match attempt stops at the next `{`.
+ */
+const importRe = /* @__PURE__ */ new RegExp(
+  String.raw`(?<=^|;)([ \t]*)import(?![\p{ID_Continue}$\u200C\u200D])\s*(?:((?:${identifier}(?:\s*,\s*(?:${namespaceOrNamed}))?|${namespaceOrNamed}))\s*from\s*)?(["'])([^"'\n\r]*)\3(?:\s*with\s*(\{[^{}]*\}))?[ \t]*;?`,
+  "gmu",
+);
+
+/** Block and line comments (inside an import clause). */
+const commentRe = /\/\*[\s\S]*?\*\/|\/\/[^\n\r\u2028\u2029]*/g;
+
+/**
+ * Rewrite static imports of template code into dynamic imports awaited in place (template
+ * code runs in an async function, where static imports are a syntax error):
+ *
+ * - `import "x"` → `await import("x");`
+ * - `import d, { a, b as c } from "x"` → `const { default: d, a, b: c } = await import("x");`
+ * - `import d, * as ns from "x"` → `const ns = await import("x"), { default: d } = ns;`
+ *
+ * Imports are not hoisted, they are evaluated where they appear on every render (modules
+ * are cached by the loader) and bindings are not live. This is a lexical rewrite: an import
+ * declaration inside a multi-line template literal or a string after a `;` is rewritten too.
+ * Line breaks are kept (after the rewritten statement) so `preserveLines` stays aligned.
+ */
+export function transformImports(code: string): string {
+  if (!code.includes("import")) {
+    return code;
+  }
+  return code.replace(importRe, (match, leading, clause, quote, from, attributes) => {
+    const load = `await import(${quote}${from}${quote}${attributes ? `, { with: ${attributes.replace(/\s+/g, " ")} }` : ""})`;
+    const defaultName = clause?.match(/^[^\s,*{]+/)?.[0];
+    const namespace = clause?.match(/\*\s*as\s+(\S+)/)?.[1];
+    let statement: string;
+    if (namespace) {
+      statement = `const ${namespace} = ${load}${defaultName ? `, { default: ${defaultName} } = ${namespace}` : ""};`;
+    } else {
+      const named = (clause?.match(/\{([^}]*)\}/)?.[1] || "").replace(commentRe, "");
+      const props = [...named.matchAll(/("[^"]*"|'[^']*'|[^\s,]+)(?:\s+as\s+([^\s,]+))?/g)].map(
+        ([, name, local]) => (local ? `${name}: ${local}` : name),
+      );
+      if (defaultName) {
+        props.unshift(`default: ${defaultName}`);
+      }
+      statement = props.length > 0 ? `const { ${props.join(", ")} } = ${load};` : `${load};`;
+    }
+    return leading + statement + lineBreaks(match.slice(leading.length));
+  });
+}
 
 /** Whether `name` is an identifier (reserved words included). */
 export const isIdentifier = (name: string): boolean => identifierRe.test(name);

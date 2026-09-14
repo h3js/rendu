@@ -56,6 +56,11 @@ describe("compileTemplateToModule", () => {
     expect(await res.text()).toBe("GET yes http://localhost/old 301");
   });
 
+  it("supports static imports in template code", async () => {
+    const { render } = await load(`<? import { join } from "node:path" ?>{{ join("a", "b") }}`);
+    expect(await (await render(request())).text()).toBe("a/b");
+  });
+
   it("detects usage in server scripts but not in text", async () => {
     const text = compileTemplateToModule(`<p>We redirect using $COOKIES and $URL {{ 1 }}</p>`);
     expect(text).not.toMatch(/createRenderCookies|createRenderURL|createRedirect/);
