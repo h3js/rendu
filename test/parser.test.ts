@@ -82,6 +82,16 @@ describe("parser", () => {
       expect(tokens).toMatchObject([{ type: "expr", contents: "htmlspecialchars(a ?\n  b : c)" }]);
     });
 
+    it("curly expressions keep the line breaks of trimmed whitespace", () => {
+      expect(parseTemplate("{{\n  a\n}}{{{ \r\n b \n\n}}}")).toMatchObject([
+        { type: "expr", contents: "\nhtmlspecialchars(a)\n" },
+        { type: "expr", contents: "\r\nb\n\n" },
+      ]);
+      expect(parseTemplate("{{ \n }}")).toMatchObject([
+        { type: "expr", contents: "\nhtmlspecialchars()" },
+      ]);
+    });
+
     it("multiline curly unescaped expression", () => {
       const tokens = parseTemplate("{{{ a ?\n  b : c }}}");
       expect(tokens).toMatchObject([{ type: "expr", contents: "a ?\n  b : c" }]);
@@ -131,7 +141,7 @@ describe("parser", () => {
         ]);
       }
       expect(parseTemplate("{{ x // a\n// b\n}}")).toMatchObject([
-        { type: "expr", contents: "htmlspecialchars(x \n)" },
+        { type: "expr", contents: "htmlspecialchars(x \n)\n" },
       ]);
     });
 
@@ -231,7 +241,7 @@ describe("parser", () => {
         "<script\n  type=module\n  server\n>",
       ]) {
         expect(parseTemplate(`${open}const x = 1;</script>`)).toMatchObject([
-          { type: "code", contents: "const x = 1;" },
+          { type: "code", contents: `${open.replace(/[^\n]/g, "")}const x = 1;` },
         ]);
       }
     });
@@ -261,7 +271,7 @@ describe("parser", () => {
         "</script foo>",
       ]) {
         expect(parseTemplate(`<script server>const x = 1;${close}hi`)).toMatchObject([
-          { type: "code", contents: "const x = 1;" },
+          { type: "code", contents: `const x = 1;${close.replace(/[^\n]/g, "")}` },
           { type: "text", contents: "hi" },
         ]);
       }

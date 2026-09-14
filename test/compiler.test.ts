@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileTemplate } from "../src/compiler.ts";
+import { compileTemplate, type CompileTemplateOptions } from "../src/compiler.ts";
 import { runtimeHelpers } from "../src/runtime.ts";
 import { format } from "oxfmt";
 
@@ -189,15 +189,11 @@ describe("preserveLines", () => {
 
   it("keeps template lines aligned with generated lines", async () => {
     const filename = "align.html";
-    const throwLine = async (template: string, opts = {}) => {
-      const fn = compileTemplate(template, {
-        stream: false,
-        preserveLines: true,
-        filename,
-        ...opts,
-      });
+    const throwLine = async (template: string, opts: CompileTemplateOptions) => {
+      const fn = compileTemplate(template, { preserveLines: true, filename, ...opts });
       try {
-        await fn({ list: ["a", "b"] });
+        const output = await fn({ list: ["a", "b"] });
+        await new Response(output).text();
       } catch (error) {
         const match = new RegExp(`${filename}:(\\d+):`).exec((error as Error).stack || "");
         return match ? Number(match[1]) : Number.NaN;
@@ -206,12 +202,43 @@ describe("preserveLines", () => {
     };
 
     const boom = `<? throw new Error("boom") ?>`;
-    const template = `${mixed}\n${boom}\n`; // `boom` is on line 7
+    const expr = `(() => { throw new Error("boom") })()`;
+    // [template, line that throws]
+    const cases: [string, number][] = [
+      [boom, 1],
+      [`${mixed}\n${boom}\n`, 7],
+      [`a\r\nb\rc\n${boom}`, 4],
+      [`a\u2028b\u2029c\n${boom}`, 2],
+      [`{{\n  list\n}}\n${boom}`, 4],
+      [`{{{\n  list\n}}}\n${boom}`, 4],
+      [`{{ list // note\n}}\n${boom}`, 3],
+      [`{{ \n }}\n${boom}`, 3],
+      [`<? if (list) { ?>yes<? } ?>\n\n${boom}`, 3],
+      [`a\n{{\n  ${expr}\n}}`, 3],
+      [`{{{ list }}}{{\n\n ${expr} }}`, 3],
+      [`<script\n  server\n>\n</script\n>\n${boom}`, 6],
+      [`<script\n  server>\nthrow new Error("boom")\n</script>`, 3],
+      [`<script server>const x = 1</script>\n${boom}`, 2],
+      [`<? const a = 1 ?><?\nthrow new Error("boom")\n?>`, 2],
+      [`<? const a = 1 ?><?= \n ${expr} ?>`, 2],
+      [`<?= list // note ?><? const a = 1 ?>\n\n${boom}`, 3],
+      [`<? const a = 1 ?><? const b = 2 ?>\n<?\n throw new Error("boom") ?>`, 3],
+      [`<? for (const item of list) { ?>\n  <li>{{ item }}</li>\n<? } ?>\n${boom}`, 4],
+      [`<? if (list) { // note ?>\n<p>\n</p>\n<? } ?><?\n\n${expr} ?>`, 6],
+    ];
 
-    for (const opts of [{}, { contextKeys: ["list"] }]) {
+    for (const opts of [
+      { stream: false },
+      { stream: false, contextKeys: ["list"] },
+      { stream: true },
+      { stream: true, contextKeys: ["list"] },
+    ]) {
       // Offset of the compiled function preamble, measured from a one line template.
       const offset = (await throwLine(boom, opts)) - 1;
-      expect(await throwLine(template, opts)).toBe(offset + 7);
+      expect(offset).toBe(3); // Documented on `preserveLines`
+      for (const [template, line] of cases) {
+        expect([template, await throwLine(template, opts)]).toEqual([template, offset + line]);
+      }
     }
   });
 });

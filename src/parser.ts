@@ -69,7 +69,13 @@ export function parseTemplate(template: string): Token[] {
     if (match.index > cursor) {
       pushTagTokens(tokens, template.slice(cursor, match.index));
     }
-    tokens.push({ type: "code", contents: match[1] || "" });
+    // Keep the line breaks of the tags (`<script\n server>`) so code lines stay aligned.
+    const code = match[1] || "";
+    const open = match[0].slice(0, match[0].length - code.length - match[2].length);
+    tokens.push({
+      type: "code",
+      contents: lineBreaks(open) + code + lineBreaks(match[2]),
+    });
     cursor = match.index + match[0].length;
   }
   if (cursor < template.length) {
@@ -161,10 +167,12 @@ function pushTextTokens(tokens: Token[], text: string): void {
       continue;
     }
 
-    // Trim surrounding whitespace and drop `//` line comments (keeping their newlines).
+    // Trim surrounding whitespace (keeping its line breaks, outside of the expression) and
+    // drop `//` line comments (keeping their line breaks).
     const inner = text.slice(start, end);
     const exprEnd = start + inner.trimEnd().length;
-    let pos = end - inner.trimStart().length;
+    const exprStart = end - inner.trimStart().length;
+    let pos = exprStart;
     let contents = "";
     for (let i = 0; i < comments.length && comments[i]! < exprEnd; i += 2) {
       contents += text.slice(pos, comments[i]);
@@ -177,7 +185,11 @@ function pushTextTokens(tokens: Token[], text: string): void {
     }
     tokens.push({
       type: "expr",
-      contents: closer === "}}" ? `htmlspecialchars(${contents})` : contents,
+      contents:
+        lineBreaks(text.slice(start, exprStart)) +
+        (closer === "}}" ? `htmlspecialchars(${contents})` : contents) +
+        // (A whitespace-only expression has no trailing whitespace of its own.)
+        lineBreaks(text.slice(Math.max(exprStart, exprEnd), end)),
     });
     cursor = from = end + closer.length;
   }
@@ -185,6 +197,9 @@ function pushTextTokens(tokens: Token[], text: string): void {
     tokens.push({ type: "text", contents: text.slice(cursor) });
   }
 }
+
+/** Only the line breaks of `text` (to keep line numbers when dropping template syntax). */
+const lineBreaks = (text: string): string => text.replace(/[^\n\r\u2028\u2029]+/g, "");
 
 /** Characters after which a `/` starts a regular expression literal instead of a division. */
 const regexPrecedingChars = "(,=:[!&|?;+-*%<>~^{";

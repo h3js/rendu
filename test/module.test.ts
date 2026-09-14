@@ -205,6 +205,28 @@ describe("compileTemplateToModule", () => {
     expect(templateLine(`<? setCookie("a", $URL) ?>\n{{ $COOKIES.a }}\n<? MARK ?>`)).toBe(3 + 1);
   });
 
+  it("reports template line N as module line N + 1 in stack traces", async () => {
+    const boom = `throw new Error("boom")`;
+    // [template, line that throws]
+    const cases: [string, number][] = [
+      [`<? ${boom} ?>`, 1],
+      [`<? setCookie("a", $URL) ?>\n{{\n  $COOKIES.a\n}}\n<? ${boom} ?>`, 5],
+      [`<script\n  server>\n${boom}\n</script>`, 3],
+      [`<? const a = 1 ?><?\n${boom}\n?>`, 2],
+    ];
+    for (const stream of [false, true]) {
+      for (const [template, line] of cases) {
+        const { render } = await load(template, { preserveLines: true, stream });
+        const error = await render(request()).then(
+          (res: Response) => res.text(),
+          (error: Error) => error,
+        );
+        const match = /data:text\/javascript,\S*:(\d+):\d+\)/.exec(error?.stack || "");
+        expect([template, Number(match?.[1])]).toEqual([template, line + 1]);
+      }
+    }
+  });
+
   it("matches snapshot", () => {
     const code = compileTemplateToModule(`<? if ($COOKIES.user) redirect("/home") ?>{{ title }}`, {
       contextKeys: ["title"],

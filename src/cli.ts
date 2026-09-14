@@ -21,7 +21,7 @@ serve({
       methods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"],
       async renderHTML({ request, html, filename }) {
         try {
-          const htmlTemplate = compileTemplate(html, { filename });
+          const htmlTemplate = compileTemplate(html, { filename, preserveLines: true });
           const response = await renderToResponse(htmlTemplate, {
             request,
             context: {

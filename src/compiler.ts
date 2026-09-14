@@ -4,6 +4,16 @@ import { runtimeStream, runtimeText } from "./runtime.ts";
 export type CompileTemplateOptions = {
   stream?: boolean;
   filename?: string;
+  /**
+   * Keep template line N on a constant line of the generated code, so stack traces (with
+   * `filename`) point at the template line: reported line = template line + 3 for
+   * `compileTemplate` (2 lines of `Function` wrapper and the runtime prelude) and + 1 in
+   * `compileTemplateToModule` output.
+   *
+   * **Note:** a code tag that does not end on a fresh line borrows a newline, paid back by the
+   * next line break. With several such tags on one line (`<? if (a) { ?>yes<? } ?>`), the code
+   * that follows is shifted by the extra tags until as many line breaks have followed.
+   */
   preserveLines?: boolean;
   /**
    * Context keys to bind with (strict mode compatible) destructuring instead of `with()`.
@@ -85,28 +95,43 @@ export function compileTemplateToString(
   const preserveLines = !!opts.preserveLines;
 
   // In `preserveLines` mode every part is self-terminated and parts are concatenated
-  // as-is, so the generated code has a newline exactly where the template has one and
+  // as-is, so the generated code has a line break exactly where the template has one and
   // template line N maps to generated line N (+ a constant prelude offset).
   //
   // Code and expression tags that do not already end on a fresh line need a trailing
   // newline: it terminates a trailing `//` line comment and lets ASI terminate the
   // statement (a `;` cannot be used, it would break `<? if (x) ?>` without braces).
-  // Such a newline is "borrowed" and paid back by skipping the next newline a text
-  // token would have emitted, which keeps the total line count (and the alignment of
-  // any code that follows) intact.
+  // Such a newline is "borrowed" and paid back by skipping the next line break a text
+  // token would have emitted, or a line break in the leading whitespace of the next tag
+  // (the borrowed newline already separates it from the code before), which keeps the
+  // alignment of any code that follows intact. Several such tags on one line borrow several
+  // newlines, so code stays shifted until as many line breaks have followed.
   let borrowed = 0;
+  const repayLeadingLineBreaks = (contents: string) =>
+    borrowed > 0
+      ? contents.replace(/^\s+/, (whitespace) =>
+          whitespace.replace(lineBreakRe, (lineBreak) => {
+            if (borrowed > 0) {
+              borrowed--;
+              return "";
+            }
+            return lineBreak;
+          }),
+        )
+      : contents;
 
   for (const token of tokens) {
     switch (token.type) {
       case "text": {
         if (preserveLines) {
-          const lines = token.contents.split("\n");
+          // [line, line break, line, ..., line] (U+2028 / U+2029 are escaped, not line breaks)
+          const lines = token.contents.split(/(\r\n?|\n)/);
           let code = "";
-          for (let i = 0; i < lines.length; i++) {
+          for (let i = 0; i < lines.length; i += 2) {
             const isLast = i === lines.length - 1;
-            const chunk = isLast ? lines[i] : lines[i] + "\n";
+            const chunk = isLast ? lines[i] : lines[i]! + lines[i + 1];
             if (chunk) {
-              code += `__echo__(${JSON.stringify(chunk)});`;
+              code += `__echo__(${toJSString(chunk)});`;
             }
             if (!isLast) {
               if (borrowed > 0) {
@@ -118,20 +143,21 @@ export function compileTemplateToString(
           }
           parts.push(code);
         } else {
-          parts.push(`__echo__(${JSON.stringify(token.contents)});`);
+          parts.push(`__echo__(${toJSString(token.contents)});`);
         }
         break;
       }
       case "expr": {
         if (preserveLines) {
+          const contents = repayLeadingLineBreaks(token.contents);
           // A newline before the closing parens is only needed when the expression may
           // end inside a line comment (`//` may also be a false positive from a string
           // literal, which only costs a borrowed line).
-          const needsNewline = !endsOnFreshLine(token.contents) && token.contents.includes("//");
+          const needsNewline = !endsOnFreshLine(contents) && contents.includes("//");
           if (needsNewline) {
             borrowed++;
           }
-          parts.push(`__echo__((${token.contents}${needsNewline ? "\n" : ""}));`);
+          parts.push(`__echo__((${contents}${needsNewline ? "\n" : ""}));`);
         } else {
           // Wrapped in parens + newlines so trailing line comments and
           // multi-line expressions do not break the generated code.
@@ -140,12 +166,15 @@ export function compileTemplateToString(
         break;
       }
       case "code": {
-        if (preserveLines && !endsOnFreshLine(token.contents)) {
-          borrowed++;
-          parts.push(`${token.contents}\n`);
-        } else {
+        if (!preserveLines) {
           // Trailing newline terminates a trailing `//` line comment.
-          parts.push(preserveLines ? token.contents : `${token.contents}\n`);
+          parts.push(`${token.contents}\n`);
+        } else if (endsOnFreshLine(token.contents)) {
+          parts.push(repayLeadingLineBreaks(token.contents));
+        } else {
+          const contents = repayLeadingLineBreaks(token.contents);
+          borrowed++;
+          parts.push(`${contents}\n`);
         }
         break;
       }
@@ -172,9 +201,20 @@ export function compileTemplateToString(
   return asyncWrapper === false ? body : `(async (__context__) => {${body}})`;
 }
 
-/** Whether the code already ends on a fresh line (nothing but whitespace after the last newline). */
+/** JS line breaks (`\r\n`, `\n`, `\r`, U+2028, U+2029). */
+const lineBreakRe = /\r\n?|[\n\u2028\u2029]/g;
+
+/** Whether the code already ends on a fresh line (nothing but whitespace after the last line break). */
 function endsOnFreshLine(code: string): boolean {
-  return /\n[^\S\n]*$/.test(code);
+  return /[\n\r\u2028\u2029]\s*$/.test(code);
+}
+
+/** A JS string literal. U+2028 / U+2029 are escaped: they would be line breaks in the generated code. */
+function toJSString(value: string): string {
+  return JSON.stringify(value).replace(
+    /[\u2028\u2029]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16)}`,
+  );
 }
 
 const identifierRe = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*$/u;
