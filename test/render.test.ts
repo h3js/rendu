@@ -1,5 +1,5 @@
 import { inspect } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { compileTemplate } from "../src/compiler.ts";
 import { createRenderContext, renderToResponse, type RenderContext } from "../src/render.ts";
 
@@ -7,6 +7,12 @@ const request = (init?: RequestInit) => new Request("http://localhost/page", ini
 
 describe("render", () => {
   describe("createRenderContext", () => {
+    it("types htmlspecialchars() of a string as a string", () => {
+      const ctx = createRenderContext({});
+      expectTypeOf(ctx.htmlspecialchars("<b>")).toEqualTypeOf<string>();
+      expect(ctx.htmlspecialchars("<b>")).toBe("&lt;b&gt;");
+    });
+
     it("prepares an html content-type", () => {
       const ctx = createRenderContext({});
       expect(ctx.$RESPONSE.headers.get("content-type")).toBe("text/html; charset=utf-8");

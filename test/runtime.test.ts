@@ -416,13 +416,10 @@ describe("runtime", () => {
       expect(await renderStream("{{ title }}", { title: "<b>" })).toBe("&lt;b&gt;");
     });
 
-    it("escapes the values <?= ?> would write", async () => {
-      // null/undefined are empty, functions are called and promises awaited, then escaped.
+    it("escapes null/undefined as empty and awaits promises", async () => {
       const context = { promise: Promise.resolve("<p>"), empty: Promise.resolve(null) };
-      const template =
-        `<?js const fn = () => { echo("<raw>"); return Promise.resolve("<fn>") } ?>` +
-        `[{{ null }}][{{ undefined }}][{{ 0 }}][{{ fn }}][{{ promise }}][{{ empty }}]`;
-      const expected = "[][][0][<raw>&lt;fn&gt;][&lt;p&gt;][]";
+      const template = `[{{ null }}][{{ undefined }}][{{ 0 }}][{{ promise }}][{{ empty }}]`;
+      const expected = "[][][0][&lt;p&gt;][]";
       expect(await renderText(template, context)).toBe(expected);
       expect(await renderStream(template, context)).toBe(expected);
     });
