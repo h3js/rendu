@@ -1,6 +1,10 @@
 import { pathToFileURL } from "node:url";
-import { describe, expect, it } from "vitest";
-import { compileTemplateToModule, type CompileTemplateToModuleOptions } from "../src/index.ts";
+import { describe, expect, expectTypeOf, it } from "vitest";
+import {
+  compileTemplateToModule,
+  type CompileTemplateToModuleOptions,
+  type RenderContextProvider,
+} from "../src/index.ts";
 import { referencesIdentifier } from "../src/runtime.ts";
 
 const importSource = pathToFileURL(new URL("../src/index.ts", import.meta.url).pathname).href;
@@ -95,6 +99,13 @@ describe("compileTemplateToModule", () => {
       `<? const redirect = 1 ?><? function setCookie() { return 2 } ?>{{ redirect }} {{ setCookie() }}`,
     );
     expect(await (await render(request())).text()).toBe("1 2");
+  });
+
+  it("exports the provider type", () => {
+    // Type-level: checked by `pnpm test:types`.
+    expectTypeOf<
+      NonNullable<CompileTemplateToModuleOptions["providers"]>[string]
+    >().toEqualTypeOf<RenderContextProvider>();
   });
 
   it("validates names", () => {

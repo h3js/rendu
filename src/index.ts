@@ -5,7 +5,11 @@ export {
   type CompileTemplateOptions,
 } from "./compiler.ts";
 
-export { compileTemplateToModule, type CompileTemplateToModuleOptions } from "./module.ts";
+export {
+  compileTemplateToModule,
+  type CompileTemplateToModuleOptions,
+  type RenderContextProvider,
+} from "./module.ts";
 
 export { hasTemplateSyntax, parseTemplate, type Token } from "./parser.ts";
 
