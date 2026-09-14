@@ -185,42 +185,25 @@ function pushTagTokens(tokens: Token[], chunk: string): void {
  * `{{{ expr }}}` renders raw and `{{ expr }}` is HTML-escaped. Curly tags are only
  * expanded within text, never inside code (`<? ... ?>`, `<script server>`) tokens.
  *
- * `{{{` always opens a raw tag. The expression ends at the first closer (`}}}` / `}}`)
- * outside of any `{ }` braces, strings, template literals, regular expressions and
- * block comments (see `scanCurlyExpression()`), so `{{ fn({ a: { b: 1 } }) }}` and
- * `{{ "}}" }}` work. A `//` line comment ends at the end of its line or at the closer
- * (`{{ x // note }}`) and is dropped from the expression.
- *
- * When that scan reaches the end of the text without a closer (an unbalanced or stray
- * `{{`), this and all following tags of the chunk fall back to closing at the first
- * closer after the opener (`{{{` without any `}}}` then reads as `{{` + `{...`), and a
- * `{{` without any closer is text. This keeps parsing linear for any input.
+ * The expression ends at the first closer outside of `{ }` braces and strings (see
+ * `scanCurlyExpression()`). Once a scan reaches the end of the text, this and all following
+ * tags close at the first closer instead (`{{{` without `}}}` reads as `{{` + `{...`), which
+ * keeps parsing linear.
  */
 function pushTextTokens(tokens: Token[], text: string): void {
-  if (!text) {
-    return;
-  }
   let cursor = 0; // End of the last tag
   let from = 0; // Where to look for the next opener
-  let lexical = true;
-  let noRawCloser = false;
+  let scan = true; // Until a scan reaches the end of the text
+  let rawCloser = true; // Whether a `}}}` may still follow
   for (let open = text.indexOf("{{"); open !== -1; open = text.indexOf("{{", from)) {
     let closer = text[open + 2] === "{" ? "}}}" : "}}";
     let start = open + closer.length;
-    let end = -1;
-    let comments: number[] = [];
-    if (lexical) {
-      const scan = scanCurlyExpression(text, start, closer);
-      if (scan) {
-        ({ end, comments } = scan);
-      } else {
-        lexical = false;
-      }
-    }
-    if (!lexical) {
-      if (closer === "}}}" && !noRawCloser) {
+    let [end, expr] = scan ? scanCurlyExpression(text, start, closer) : [-1, ""];
+    if (end === -1) {
+      scan = false;
+      if (closer === "}}}" && rawCloser) {
         end = text.indexOf(closer, start);
-        noRawCloser = end === -1;
+        rawCloser = end !== -1;
       }
       if (end === -1) {
         closer = "}}";
@@ -230,36 +213,24 @@ function pushTextTokens(tokens: Token[], text: string): void {
           break; // No closer left in this chunk
         }
       }
+      expr = text.slice(start, end);
     }
     if (end === start) {
-      // `{{}}` is text
-      from = open + 2;
+      from = open + 2; // `{{}}` is text
       continue;
     }
-
-    // Trim surrounding whitespace (keeping its line breaks, outside of the expression) and
-    // drop `//` line comments (keeping their line breaks).
-    const inner = text.slice(start, end);
-    const exprEnd = start + inner.trimEnd().length;
-    const exprStart = end - inner.trimStart().length;
-    let pos = exprStart;
-    let contents = "";
-    for (let i = 0; i < comments.length && comments[i]! < exprEnd; i += 2) {
-      contents += text.slice(pos, comments[i]);
-      pos = comments[i + 1]!;
-    }
-    contents += text.slice(pos, exprEnd);
-
     if (open > cursor) {
       tokens.push({ type: "text", contents: text.slice(cursor, open) });
     }
+    // Trim surrounding whitespace, keeping its line breaks outside of the expression.
+    const trimmed = expr.trim();
+    const leading = expr.length - expr.trimStart().length;
     tokens.push({
       type: "expr",
       contents:
-        lineBreaks(text.slice(start, exprStart)) +
-        (closer === "}}" ? `htmlspecialchars(${contents})` : contents) +
-        // (A whitespace-only expression has no trailing whitespace of its own.)
-        lineBreaks(text.slice(Math.max(exprStart, exprEnd), end)),
+        lineBreaks(expr.slice(0, leading)) +
+        (closer === "}}" ? `htmlspecialchars(${trimmed})` : trimmed) +
+        lineBreaks(expr.slice(leading + trimmed.length)),
     });
     cursor = from = end + closer.length;
   }
@@ -271,115 +242,51 @@ function pushTextTokens(tokens: Token[], text: string): void {
 /** Only the line breaks of `text` (to keep line numbers when dropping template syntax). */
 const lineBreaks = (text: string): string => text.replace(/[^\n\r\u2028\u2029]+/g, "");
 
-/** Characters after which a `/` starts a regular expression literal instead of a division. */
-const regexPrecedingChars = "(,=:[!&|?;+-*%<>~^{";
-
-/** JS line terminators (`\n`, `\r`, U+2028, U+2029), which end line comments and literals. */
+/** JS line terminators, which end `//` comments and `"` / `'` strings. */
 const lineTerminators = "\n\r\u2028\u2029";
 
 /**
- * Scan a curly tag expression from `start` up to its `closer` (`}}` or `}}}`), skipping
- * `{ }` braces, `"` / `'` strings (which also end at a line terminator), template literals with
- * `${ }` substitutions, regular expression literals (a `/` after an operator or opening
- * punctuation, but not after postfix `++` / `--`) and block comments. `//` line comments
- * end at a line terminator or the closer.
- *
- * Returns the index of the closer and `[start, end]` index pairs of line comments, or
- * `undefined` when the text ends first.
+ * Scan a curly tag expression from `start` up to its `closer` (`}}` or `}}}`), skipping `{ }`
+ * braces and `"` / `'` (up to a line terminator) / `` ` `` strings, and dropping `//` line
+ * comments (not after `\`, as in `/\//`; up to a line terminator or the closer). Block comments
+ * and regular expression literals are not scanned, so braces or quotes inside of them can end
+ * the expression early. Returns the closer index (`-1` when the text ends first) and the
+ * expression.
  */
-function scanCurlyExpression(
-  text: string,
-  start: number,
-  closer: string,
-): { end: number; comments: number[] } | undefined {
-  const braces: boolean[] = []; // `true` for a template literal `${`
-  const comments: number[] = [];
-  let regexAllowed = true;
-  let i = start;
-  while (i < text.length) {
+function scanCurlyExpression(text: string, start: number, closer: string): [number, string] {
+  let depth = 0;
+  let expr = "";
+  for (let i = start; i < text.length; i++) {
     const ch = text[i]!;
-    if (braces.length === 0 && text.startsWith(closer, i)) {
-      return { end: i, comments };
+    if (!depth && text.startsWith(closer, i)) {
+      return [i, expr + text.slice(start, i)];
     }
     if (ch === "{") {
-      braces.push(false);
-      i++;
-    } else if (ch === "}") {
-      i = braces.pop() ? skipTemplateLiteral(text, i + 1, braces) : i + 1;
-    } else if (ch === "`") {
-      i = skipTemplateLiteral(text, i + 1, braces);
-    } else if (ch === '"' || ch === "'") {
-      i = skipQuoted(text, i);
-    } else if (ch === "/" && text[i + 1] === "/") {
-      const commentStart = i;
-      i += 2;
+      depth++;
+    } else if (ch === "}" && depth) {
+      depth--;
+    } else if (ch === '"' || ch === "'" || ch === "`") {
+      while (++i < text.length && text[i] !== ch) {
+        if (text[i] === "\\") {
+          i++;
+        } else if (ch !== "`" && lineTerminators.includes(text[i]!)) {
+          break;
+        }
+      }
+    } else if (ch === "/" && text[i + 1] === "/" && text[i - 1] !== "\\") {
+      expr += text.slice(start, i);
+      start = i;
       while (
-        i < text.length &&
-        !lineTerminators.includes(text[i]!) &&
-        !(braces.length === 0 && text.startsWith(closer, i))
+        start < text.length &&
+        !lineTerminators.includes(text[start]!) &&
+        (depth || !text.startsWith(closer, start))
       ) {
-        i++;
+        start++;
       }
-      comments.push(commentStart, i);
-      continue;
-    } else if (ch === "/" && text[i + 1] === "*") {
-      const commentEnd = text.indexOf("*/", i + 2);
-      i = commentEnd === -1 ? text.length : commentEnd + 2;
-      continue;
-    } else if (ch === "/" && regexAllowed) {
-      i = skipQuoted(text, i);
-    } else {
-      i++;
-      if (/\s/.test(ch)) {
-        continue;
-      }
-    }
-    // `a++ / b` is a division
-    regexAllowed =
-      regexPrecedingChars.includes(ch) && !(ch === text[i - 2] && (ch === "+" || ch === "-"));
-  }
-  return undefined;
-}
-
-/**
- * Skip a template literal body from `i` (after the opening backtick or a substitution's
- * closing `}`) up to its closing backtick or next `${` (pushed onto `braces`).
- */
-function skipTemplateLiteral(text: string, i: number, braces: boolean[]): number {
-  for (; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === "\\") {
-      i++;
-    } else if (ch === "`") {
-      return i + 1;
-    } else if (ch === "$" && text[i + 1] === "{") {
-      braces.push(true);
-      return i + 2;
+      i = start - 1; // Continue at the line terminator or closer
     }
   }
-  return i;
-}
-
-/**
- * Skip a string (`"` / `'`) or regular expression (`/`, with `[...]` classes) literal
- * starting at `i`. Unterminated literals end at a line terminator.
- */
-function skipQuoted(text: string, i: number): number {
-  const quote = text[i];
-  let inClass = false;
-  for (i++; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === "\\") {
-      i++;
-    } else if (lineTerminators.includes(ch!)) {
-      return i;
-    } else if (quote === "/" && (ch === "[" || (inClass && ch === "]"))) {
-      inClass = ch === "[";
-    } else if (ch === quote && !inClass) {
-      return i + 1;
-    }
-  }
-  return i;
+  return [-1, ""];
 }
 
 /**
