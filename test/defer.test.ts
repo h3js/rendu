@@ -637,6 +637,36 @@ async function renderPair(v: unknown) {
   return norm(chunks.join(""));
 }
 
+/**
+ * Assert that `value`, streamed whole and one character at a time, as the first patch and after
+ * another one, cannot put a `<b>` outside of its patch, with scripting enabled or not.
+ */
+async function expectContained(value: string) {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  for (const chunks of [[value], [...value]]) {
+    const renders = [
+      renderPair(parts(chunks, false)),
+      // A sync sibling settles first, so this patch goes out second.
+      collect(`<?= defer(v) ?><?= defer(next) ?>`, { v: parts(chunks, false), next: "<i>n</i>" }),
+    ];
+    for (const render of renders) {
+      const html = norm([await render].flat().join(""));
+      for (const scriptingEnabled of [true, false]) {
+        expect(framing(html, scriptingEnabled).patches.sort(), html).toEqual(["d0", "d1"]);
+        expect(framing(html, scriptingEnabled).after, html).toBe(true);
+        // Template content is not in `childNodes`: a <b> found there escaped its patch.
+        const found: string[] = [];
+        const walk = (node: any): void => {
+          if (node.nodeName === "b") found.push(node.nodeName);
+          node.childNodes?.forEach(walk);
+        };
+        walk(parse(`<!doctype html><body>${html}`, { scriptingEnabled }));
+        expect(found, html).toEqual([]);
+      }
+    }
+  }
+}
+
 /** The first patch's content as it went out on the wire. */
 const firstPatch = (html: string) =>
   /<template for="d0">([\s\S]*?)<\/template><template for="d1">/.exec(html)?.[1];
@@ -895,22 +925,43 @@ describe("defer patch framing", () => {
     `<select><style></template><b>x</b>`,
     `<select><template></select></template><iframe></template><b>x</b>`,
   ])("keeps %j in its patch whether or not its element is raw text", async (value) => {
-    for (const chunks of [[value], [...value]]) {
-      const html = await renderPair(parts(chunks, false));
-      for (const scriptingEnabled of [true, false]) {
-        expect(framing(html, scriptingEnabled), html).toEqual({
-          patches: ["d0", "d1"],
-          after: true,
-        });
-        // Template content is not in `childNodes`: a <b> found there escaped its patch.
-        const found: string[] = [];
-        const walk = (node: any): void => {
-          if (node.nodeName === "b") found.push(node.nodeName);
-          node.childNodes?.forEach(walk);
-        };
-        walk(parse(`<!doctype html><body>${html}`, { scriptingEnabled }));
-        expect(found, html).toEqual([]);
-      }
+    await expectContained(value);
+  });
+
+  it.each([
+    // Column group template content ignores the <script>, so it does not open raw text.
+    `<col><script></template><b>x</b>`,
+    `<meta><col><style></template><b>x</b>`,
+    `<template><col></template><template><col><xmp></template></template><b>x</b>`,
+    // A <template> in foreign content is an SVG / MathML element that </svg> closes implicitly.
+    `<svg><template></svg></template><b>x</b>`,
+    `<math><template></math></template><b>x</b>`,
+    `<svg><template><b></template><b>x</b>`,
+    // Raw text elements are markup in foreign content, and so is CDATA.
+    `<svg><style></template><b>x</b>`,
+    `<math><script><!--</script></template><b>x</b>`,
+    `<noscript><div><svg></noscript><style></template><b>x</b>`,
+    `<svg><![CDATA[><a title="]]></template><b>x</b>">`,
+    `<svg><![CDATA[></svg>]]><template></svg></template><b>x</b>`,
+    // HTML nested in an integration point can keep </svg> / </math> from closing the element.
+    `<svg><foreignObject><div></svg></div></foreignObject><template></svg></template><b>x</b>`,
+    `<svg><foreignObject></foreignObjectx><div></svg></div></foreignObject><template></svg></template><b>x</b>`,
+    `<math><mi><i></math></i></mi><template></math></template><b>x</b>`,
+  ])("keeps %j in its patch whatever its template content model", async (value) => {
+    await expectContained(value);
+  });
+
+  it("leaves <col>, <svg> and <math> content alone when it cannot break out", async () => {
+    const value =
+      `<svg viewBox="0 0 24 24"><title>Star</title><path d="M4 12h16"/></svg>` +
+      `<svg><style><![CDATA[.a .b{fill:red}]]></style><rect class="a"/></svg>` +
+      `<math><mi>x</mi><mo>&lt;</mo><mn>2</mn></math>` +
+      `<template shadowrootmode="open"><slot></slot></template>` +
+      `<script>if (a<b) x = '<!--'</script>`;
+    for (const v of [value, `<col span="2"><col><template><p>x</p></template>`]) {
+      const html = await renderPair(parts([...v], false));
+      expect(firstPatch(html)).toBe(v);
+      expect(framing(html)).toEqual({ patches: ["d0", "d1"], after: true });
     }
   });
 
@@ -920,6 +971,13 @@ describe("defer patch framing", () => {
       `<select><option>a</option></select><style>a::after{content:"<i"}</style>`;
     const html = await renderPair(parts([...value], false));
     expect(firstPatch(html)).toBe(value);
+    expect(framing(html)).toEqual({ patches: ["d0", "d1"], after: true });
+  });
+
+  it("holds a <![CDATA[ in foreign content back only up to a limit", async () => {
+    const long = "x".repeat(20_000);
+    const html = await renderPair(parts([`<svg><![CDATA[${long}`, `]]></svg>`], false));
+    expect(firstPatch(html)).toBe(`<svg>&lt;![CDATA[${long}]]></svg>`);
     expect(framing(html)).toEqual({ patches: ["d0", "d1"], after: true });
   });
 

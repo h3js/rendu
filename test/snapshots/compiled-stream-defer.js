@@ -104,65 +104,99 @@ async function anonymous(__context__) {
       return a;
     }
     let o = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
-      s = [`noscript`, `style`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
-    function c() {
+      s = [`noscript`, `style`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
+      c = [
+        `base`,
+        `basefont`,
+        `bgsound`,
+        `link`,
+        `meta`,
+        `noframes`,
+        `script`,
+        `style`,
+        `template`,
+        `title`,
+      ],
+      l = [`foreignobject`, `desc`, `title`, `mi`, `mo`, `mn`, `ms`, `mtext`, `annotation-xml`];
+    function u() {
       let e = ``,
         t = `data`,
         n = 0,
         r = 0,
         i = [],
         a = -1,
-        c = ``,
-        l = !1,
-        u = ``,
+        u = [0],
         d = 0,
         f = 0,
-        p = ``,
-        m = (e) => {
-          let t = (t) => (e ? t.startsWith(c) : t === c);
+        p = [],
+        m = ``,
+        h = !1,
+        g = ``,
+        _ = 0,
+        v = 0,
+        y = ``,
+        b = (e) => {
+          let t = (t) => (e ? t.startsWith(m) : t === m);
           return i.length > 0
-            ? t(`template`) || (!l && t(`plaintext`))
-            : l
+            ? t(`template`) || (!h && t(`plaintext`))
+            : h
               ? r === 0 && t(`template`)
-              : t(`plaintext`);
+              : t(`plaintext`) || (d + f > 0 && t(`template`));
         },
-        h = () => {
-          ((t = `data`),
-            c === `template`
-              ? ((r += l ? -1 : 1), r < a && (a = -1))
-              : c === `select`
-                ? !l && a < 0
-                  ? (a = r)
-                  : l && r === a && (a = -1)
-                : l
-                  ? i.includes(c) && (i = i.filter((e) => e !== c))
-                  : c === `noscript` || (a >= 0 && s.includes(c))
-                    ? i.includes(c) || i.push(c)
-                    : o.includes(c) && ((t = `raw`), (u = c), (d = 0), (f = 0)));
+        x = () => {
+          t = `data`;
+          let e = u[r],
+            n = d + f > 0;
+          if ((!h && !e && !c.includes(m) && (u[r] = m === `col` ? 2 : 1), m === `template`)) {
+            (h ? (r--, (d = f = 0), (p = [])) : (u[++r] = 0), r < a && (a = -1));
+            return;
+          }
+          e !== 2 &&
+            (n &&
+              (h
+                ? p[p.length - 1] === m && p.pop()
+                : p.length > 0
+                  ? (d = f = 1 / 0)
+                  : l.includes(m) && p.push(m)),
+            m === `select`
+              ? !h && a < 0
+                ? (a = r)
+                : h && r === a && (a = -1)
+              : h
+                ? (i.includes(m) && (i = i.filter((e) => e !== m)),
+                  m === `svg` && d > 0 && d--,
+                  m === `math` && f > 0 && f--)
+                : m === `svg`
+                  ? d++
+                  : m === `math`
+                    ? f++
+                    : m === `noscript` || (a >= 0 && s.includes(m)) || (n && o.includes(m))
+                      ? i.includes(m) || i.push(m)
+                      : o.includes(m) && ((t = `raw`), (g = m), (_ = 0), (v = 0)));
         },
-        g = (r) => {
+        S = (r) => {
           ((r = e + r), (e = ``));
           let a = ``,
             o = 0,
-            g = (e) => {
+            s = (e) => {
               o <= e && ((a += r.slice(o, e) + `&lt;`), (o = e + 1));
             },
-            _ = (e, t) => {
+            c = (e, t) => {
               for (t < 0 && (t = r.length); i.length > 0 && e < t; e++)
-                r.charCodeAt(e) === 60 && g(e);
+                r.charCodeAt(e) === 60 && s(e);
               return t;
             };
           for (let e = 0; e < r.length; e++) {
             let a = r[e],
               o = r.charCodeAt(e),
-              v = o === 32 || o === 9 || o === 10 || o === 12 || o === 13,
-              y = (o >= 65 && o <= 90) || (o >= 97 && o <= 122);
+              l = o === 32 || o === 9 || o === 10 || o === 12 || o === 13,
+              u = (o >= 65 && o <= 90) || (o >= 97 && o <= 122);
             switch (
-              (o === 60 && i.length > 0 && t !== `data` && t !== `lt` && t[0] !== `r` && g(e), t)
+              (o === 60 && i.length > 0 && t !== `data` && t !== `lt` && t[0] !== `r` && s(e), t)
             ) {
               case `data`:
                 ((e = r.indexOf(`<`, e)),
-                  e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (c = ``), (l = !1)));
+                  e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (m = ``), (h = !1)));
                 break;
               case `lt`:
                 (a === `/`
@@ -171,42 +205,53 @@ async function anonymous(__context__) {
                     ? (t = `md`)
                     : a === `?`
                       ? (t = `bogus`)
-                      : ((t = y ? `name` : `data`), e--),
-                  (l = t === `endlt`));
+                      : ((t = u ? `name` : `data`), e--),
+                  (h = t === `endlt`));
                 break;
               case `endlt`:
-                a === `>` ? (t = `data`) : ((t = y ? `name` : `bogus`), e--);
+                a === `>` ? (t = `data`) : ((t = u ? `name` : `bogus`), e--);
                 break;
               case `name`:
-                v || a === `/`
+                l || a === `/`
                   ? (t = `attr`)
                   : a === `>`
-                    ? h()
-                    : (c.length < 10 && (c += y ? a.toLowerCase() : a),
-                      m(!1) && (g(n), (t = `data`)));
+                    ? x()
+                    : (m.length < 15 && (m += u ? a.toLowerCase() : a),
+                      b(!1) && (s(n), (t = `data`)));
                 break;
               case `attr`:
-                a === `>` ? h() : !v && a !== `/` && (t = `aname`);
+                a === `>` ? x() : !l && a !== `/` && (t = `aname`);
                 break;
               case `aname`:
-                a === `>` ? h() : a === `/` ? (t = `attr`) : a === `=` && (t = `aval`);
+                a === `>` ? x() : a === `/` ? (t = `attr`) : a === `=` && (t = `aval`);
                 break;
               case `aval`:
-                a === `>` ? h() : a === `"` ? (t = `dq`) : a === `'` ? (t = `sq`) : v || (t = `uq`);
+                a === `>` ? x() : a === `"` ? (t = `dq`) : a === `'` ? (t = `sq`) : l || (t = `uq`);
                 break;
               case `dq`:
               case `sq`:
-                ((e = _(e, r.indexOf(t === `dq` ? `"` : `'`, e))), e < r.length && (t = `attr`));
+                ((e = c(e, r.indexOf(t === `dq` ? `"` : `'`, e))), e < r.length && (t = `attr`));
                 break;
               case `uq`:
-                a === `>` ? h() : v && (t = `attr`);
+                a === `>` ? x() : l && (t = `attr`);
                 break;
               case `md`:
               case `mdd`:
-                a === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
+                if (a === `-`) t = t === `md` ? `mdd` : `cs`;
+                else if (a === `[` && t === `md` && d + f > 0) {
+                  let i = r.indexOf(`>`, e),
+                    a = (i < 0 ? r.length : i) - n > 16384;
+                  !r.startsWith(`[CDATA[`, e) && (i >= 0 || r.length - e >= 7)
+                    ? ((t = `bogus`), e--)
+                    : i < 0 && !a
+                      ? (e = r.length)
+                      : !a && i >= e + 9 && r.startsWith(`]]`, i - 2)
+                        ? ((e = c(e, i)), (t = `data`))
+                        : (s(n), (t = `data`));
+                } else ((t = `bogus`), e--);
                 break;
               case `bogus`:
-                ((e = _(e, r.indexOf(`>`, e))), e < r.length && (t = `data`));
+                ((e = c(e, r.indexOf(`>`, e))), e < r.length && (t = `data`));
                 break;
               case `cs`:
               case `csd`:
@@ -217,7 +262,7 @@ async function anonymous(__context__) {
                     : ((t = `c`), e--);
                 break;
               case `c`:
-                ((e = _(e, r.indexOf(`-`, e))), e < r.length && (t = `ced`));
+                ((e = c(e, r.indexOf(`-`, e))), e < r.length && (t = `ced`));
                 break;
               case `ced`:
                 a === `-` ? (t = `ce`) : ((t = `c`), e--);
@@ -233,58 +278,58 @@ async function anonymous(__context__) {
                       : ((t = `c`), e--);
                 break;
               case `raw`:
-                d === 0
+                _ === 0
                   ? ((e = r.indexOf(`<`, e)), e < 0 ? (e = r.length) : ((t = `rlt`), (n = e)))
                   : a === `<`
-                    ? ((t = `rlt`), (n = e), (f = 0))
+                    ? ((t = `rlt`), (n = e), (v = 0))
                     : a === `-`
-                      ? f++
-                      : (a === `>` && f > 1 && (d = 0), (f = 0));
+                      ? v++
+                      : (a === `>` && v > 1 && (_ = 0), (v = 0));
                 break;
               case `rlt`:
-                ((p = ``),
+                ((y = ``),
                   a === `/`
-                    ? (t = d === 2 ? `rdname` : `rname`)
-                    : a === `!` && u === `script` && d === 0
+                    ? (t = _ === 2 ? `rdname` : `rname`)
+                    : a === `!` && g === `script` && _ === 0
                       ? (t = `rbang`)
-                      : ((t = y && d === 1 ? `rdname` : `raw`), e--));
+                      : ((t = u && _ === 1 ? `rdname` : `raw`), e--));
                 break;
               case `rbang`:
               case `rbangd`:
                 a === `-`
                   ? t === `rbang`
                     ? (t = `rbangd`)
-                    : ((t = `raw`), (d = 1), (f = 2))
+                    : ((t = `raw`), (_ = 1), (v = 2))
                   : ((t = `raw`), e--);
                 break;
               case `rname`:
               case `rdname`:
-                y
-                  ? (p.length < 10 && (p += a.toLowerCase()),
-                    p !== u && i.length > 0 && s.includes(p) && g(n))
-                  : !v && a !== `/` && a !== `>`
+                u
+                  ? (y.length < 10 && (y += a.toLowerCase()), y !== g && i.includes(y) && s(n))
+                  : !l && a !== `/` && a !== `>`
                     ? ((t = `raw`), e--)
                     : t === `rdname`
-                      ? ((t = `raw`), p === `script` && (d = 3 - d))
-                      : p === u
-                        ? ((t = `attr`), (c = u), (l = !0), a === `>` && h())
+                      ? ((t = `raw`), y === `script` && (_ = 3 - _))
+                      : y === g
+                        ? ((t = `attr`), (m = g), (h = !0), a === `>` && x())
                         : ((t = `raw`), e--);
             }
           }
-          return ((t === `lt` || t === `endlt` || t === `name`) && m(!0)) ||
+          return ((t === `lt` || t === `endlt` || t === `name`) && b(!0)) ||
+            (t === `md` && d + f > 0) ||
             (i.length > 0 &&
               o <= n &&
               (t === `rlt` ||
-                ((t === `rname` || t === `rdname`) && s.some((e) => e.startsWith(p)))))
+                ((t === `rname` || t === `rdname`) && i.some((e) => e.startsWith(y)))))
             ? ((e = r.slice(n)), (t = t[0] === `r` ? `raw` : `data`), a + r.slice(o, n))
             : a + r.slice(o);
         };
       return {
-        guard: g,
+        guard: S,
         end: () => {
           let n = e && `&lt;` + e.slice(1);
           for (e = ``; t !== `data` || r > 0 || i.length > 0;)
-            n += g(
+            n += S(
               t === `dq`
                 ? `">`
                 : t === `sq`
@@ -292,9 +337,9 @@ async function anonymous(__context__) {
                   : t[0] === `c`
                     ? `-->`
                     : t[0] === `r`
-                      ? d === 2
+                      ? _ === 2
                         ? `-->`
-                        : `</` + u + `>`
+                        : `</` + g + `>`
                       : t === `data`
                         ? i.length > 0
                           ? `</` + i[0] + `>`
@@ -305,7 +350,7 @@ async function anonymous(__context__) {
         },
       };
     }
-    function l(e) {
+    function d(e) {
       let t = new Set(),
         n = [],
         r = `name="` + e,
@@ -327,141 +372,142 @@ async function anonymous(__context__) {
         },
       };
     }
-    function u(e, t, o) {
+    function f(e, t, o) {
       let s = new TextEncoder(),
-        u = new TextDecoder(),
-        d = new Set(),
+        c = new TextDecoder(),
+        l = new Set(),
         f = { cancelled: !1, activeReader: void 0 },
         p = (n) => {
           ((f.cancelled = !0), (f.reason = n));
           let r = f.activeReader;
           f.activeReader = void 0;
-          for (let e of d) e.cancel(n).catch(() => {});
-          d.clear();
+          for (let e of l) e.cancel(n).catch(() => {});
+          l.clear();
           for (let t of e) i(t, n);
           for (let e of t) e.settled?.then((e) => i(`value` in e && e.value, n));
           return r?.cancel(n);
         };
       return new ReadableStream({
         async pull(i) {
-          let { guard: m, end: h } = c(),
-            { seen: g, found: _, scan: v } = l(o),
-            y,
+          let m,
+            { seen: h, found: g, scan: _ } = d(o),
+            v,
+            y = !1,
             b = !1,
-            x = !1,
-            S = (e) => {
-              f.cancelled || (t.length > 0 && v(e), i.enqueue(s.encode(e)));
+            x = (e) => {
+              f.cancelled || (t.length > 0 && _(e), i.enqueue(s.encode(e)));
             },
-            C = () => {
-              ((b = !0),
-                x ||
-                  ((x = !0),
-                  S(
+            S = () => {
+              ((y = !0),
+                (m = u()),
+                b ||
+                  ((b = !0),
+                  x(
                     "<script>window.__renduPatch=typeof HTMLTemplateElement<`u`&&`htmlFor`in HTMLTemplateElement.prototype?function(){}:function(){let e=document.currentScript,t=e&&e.previousElementSibling;if(!(!t||t.tagName!==`TEMPLATE`||!t.hasAttribute(`for`)))try{let e=t.getAttribute(`for`);if(!e)return;let n=e=>e.target?`?`+e.target+` `+e.data:e.data,r=document.createTreeWalker(document,192),i=null,a=null;for(let t=r.nextNode();t;t=r.nextNode()){let r=/^\\?(marker|start)\\s+name=[\"']?([^\"'\\s?>]+)/.exec(n(t));if(r&&r[2]===e){i=t,r[1]===`marker`&&(a=t);break}}if(!i)return;if(a!==i)for(let e=i.nextSibling,t=0;e;e=e.nextSibling){if(e.nodeType!==7&&e.nodeType!==8)continue;let r=n(e);if(/^\\?start\\b/.test(r))t++;else if(/^\\?end\\b/.test(r)){if(t===0){a=e;break}t--}}let o=i.parentNode;if(!o)return;if(a!==i)for(let e=i.nextSibling,t;e&&e!==a;e=t)t=e.nextSibling,o.removeChild(e);o.insertBefore(t.content,a),a&&a!==i&&o.removeChild(a),o.removeChild(i)}finally{t.remove()}};<\/script>",
                   )),
-                S(`<template for="` + y + `">`));
+                x(`<template for="` + v + `">`));
             },
-            w = (e) => {
+            C = (e) => {
               if (f.cancelled) return;
-              if (y === void 0) {
+              if (v === void 0) {
                 let t = n(e);
-                t ? i.enqueue(t) : S(String(e));
+                t ? i.enqueue(t) : x(String(e));
                 return;
               }
-              let t = r(u, e);
+              let t = r(c, e);
               if (!t) return;
-              (b || C(), v(t));
-              let a = m(t);
+              (y || S(), _(t));
+              let a = m.guard(t);
               a && i.enqueue(s.encode(a));
             },
-            T = a(f, w);
+            w = a(f, C);
           try {
             for (let t of e) {
               if (f.cancelled) return;
-              await T(t);
+              await w(t);
             }
           } catch (e) {
             throw (p(e), e);
           }
-          let E = async (e, t) => {
+          let T = async (e, t) => {
               f.activeReader = e;
               try {
                 for (let n = t; !n.done; n = await e.read()) {
                   if (f.cancelled) return;
-                  w(n.value);
+                  C(n.value);
                 }
               } finally {
-                ((f.activeReader = void 0), d.delete(e), e.releaseLock());
+                ((f.activeReader = void 0), l.delete(e), e.releaseLock());
               }
             },
+            E = 0,
             D = 0,
-            O = 0,
-            k = [],
-            A,
-            j = (e) => {
-              let t = D++;
-              (O++,
+            O = [],
+            k,
+            A = (e) => {
+              let t = E++;
+              (D++,
                 e.then((e) => {
-                  if (A) {
-                    let t = A;
-                    ((A = void 0), t(e));
+                  if (k) {
+                    let t = k;
+                    ((k = void 0), t(e));
                     return;
                   }
-                  let n = k.length;
-                  for (; n > 0 && k[(n - 1) >> 1].at > t;)
-                    ((k[n] = k[(n - 1) >> 1]), (n = (n - 1) >> 1));
-                  k[n] = { at: t, settled: e };
+                  let n = O.length;
+                  for (; n > 0 && O[(n - 1) >> 1].at > t;)
+                    ((O[n] = O[(n - 1) >> 1]), (n = (n - 1) >> 1));
+                  O[n] = { at: t, settled: e };
                 }));
             },
-            M = () => {
-              if (k.length === 0) return new Promise((e) => (A = e));
-              let { settled: e } = k[0],
-                t = k.pop(),
+            j = () => {
+              if (O.length === 0) return new Promise((e) => (k = e));
+              let { settled: e } = O[0],
+                t = O.pop(),
                 n = 0;
               for (
                 let e = 1;
-                e < k.length &&
-                (e + 1 < k.length && k[e + 1].at < k[e].at && e++, !(t.at < k[e].at));
+                e < O.length &&
+                (e + 1 < O.length && O[e + 1].at < O[e].at && e++, !(t.at < O[e].at));
                 n = e, e = 2 * n + 1
               )
-                k[n] = k[e];
-              return (n < k.length && (k[n] = t), e);
+                O[n] = O[e];
+              return (n < O.length && (O[n] = t), e);
             },
+            M = 0,
             N = 0,
-            P = 0,
-            F = new Map(),
-            I = () => {
+            P = new Map(),
+            F = () => {
               let e = [];
-              for (let t of _.splice(0)) {
-                let n = F.get(t);
-                n !== void 0 && (F.delete(t), e.push(n));
+              for (let t of g.splice(0)) {
+                let n = P.get(t);
+                n !== void 0 && (P.delete(t), e.push(n));
               }
-              for (let n of e.sort((e, t) => e - t)) j(t[n].settled);
-              for (; N < t.length; N++) {
-                let e = t[N];
-                g.has(e.name) ? j(e.settled) : F.set(e.name, N);
+              for (let n of e.sort((e, t) => e - t)) A(t[n].settled);
+              for (; M < t.length; M++) {
+                let e = t[M];
+                h.has(e.name) ? A(e.settled) : P.set(e.name, M);
               }
-              if (O === 0 && F.size > 0) {
-                for (; !F.has(t[P].name);) P++;
-                (F.delete(t[P].name), j(t[P].settled));
+              if (D === 0 && P.size > 0) {
+                for (; !P.has(t[N].name);) N++;
+                (P.delete(t[N].name), A(t[N].settled));
               }
             };
-          for (I(); O > 0;) {
+          for (F(); D > 0;) {
             if (f.cancelled) return;
             await void 0;
-            let e = await M();
-            if ((O--, f.cancelled)) return;
+            let e = await j();
+            if ((D--, f.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
               let { entry: t, value: n } = e,
                 r = n instanceof Response ? n.body : n;
-              if (r instanceof ReadableStream && O > 0)
+              if (r instanceof ReadableStream && D > 0)
                 try {
                   let e = r.getReader();
-                  (d.add(e),
-                    j(
+                  (l.add(e),
+                    A(
                       e.read().then(
                         (n) => ({ entry: t, reader: e, first: n }),
-                        (n) => (d.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
+                        (n) => (l.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
                       ),
                     ));
                   continue;
@@ -470,27 +516,27 @@ async function anonymous(__context__) {
                 }
             }
             if (e.failed) {
-              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), I());
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), F());
               continue;
             }
-            y = e.entry.name;
+            v = e.entry.name;
             let t = !1;
             try {
-              await (e.reader ? E(e.reader, e.first) : T(e.value));
+              await (e.reader ? T(e.reader, e.first) : w(e.value));
             } catch (n) {
               ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
             }
-            let n = u.decode();
-            (n && (b || !t) && w(n), !b && !t && C());
-            let r = b ? h() + `</template>` : ``;
-            ((y = void 0), (b = !1), r && (S(r), S(`<script>__renduPatch()<\/script>`)), I());
+            let n = c.decode();
+            (n && (y || !t) && C(n), !y && !t && S());
+            let r = y ? m.end() + `</template>` : ``;
+            ((v = void 0), (y = !1), r && (x(r), x(`<script>__renduPatch()<\/script>`)), F());
           }
           f.cancelled || i.close();
         },
         cancel: p,
       });
     }
-    return u;
+    return f;
   })();
   __sink__ = void 0;
   return concatStreams(__chunks__, __deferred__, __deferId__);
