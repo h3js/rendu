@@ -31,44 +31,38 @@ async function anonymous(__context__) {
       }
       return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
     }
-    function n(e) {
-      if (e instanceof Uint8Array) return e;
-      if (ArrayBuffer.isView(e)) return new Uint8Array(e.buffer, e.byteOffset, e.byteLength);
-      if (e instanceof ArrayBuffer) return new Uint8Array(e);
+    function n(e, t) {
+      if (t instanceof ArrayBuffer || ArrayBuffer.isView(t)) return e.decode(t, { stream: !0 });
+      let n = String(t);
+      return n && e.decode() + n;
     }
-    function r(e, t) {
-      let r = n(t);
-      if (r) return e.decode(r, { stream: !0 });
-      let i = String(t);
-      return i && e.decode() + i;
-    }
-    async function i(n, a) {
+    async function r(i, a) {
       let o = !a;
       a ??= new TextDecoder();
       let s = ``;
-      for (let o of n) {
+      for (let o of i) {
         if (typeof o == `function`) {
           let [e, n] = t(o);
-          ((o = e), n.length > 0 && (s += await i(n, a)));
+          ((o = e), n.length > 0 && (s += await r(n, a)));
         }
         if ((e(o) && (o = await o), o instanceof Response && (o = o.body), o != null)) {
           if (o instanceof ReadableStream) {
             let e = o.getReader();
             try {
               for (;;) {
-                let { value: t, done: n } = await e.read();
-                if (n) break;
-                s += r(a, t);
+                let { value: t, done: r } = await e.read();
+                if (r) break;
+                s += n(a, t);
               }
             } finally {
               e.releaseLock();
             }
-          } else s += r(a, o);
+          } else s += n(a, o);
         }
       }
       return o ? s + a.decode() : s;
     }
-    return i;
+    return r;
   })();
   __sink__ = void 0;
   return __render__(__chunks__);

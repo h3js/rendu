@@ -29,9 +29,11 @@ async function anonymous(__context__) {
       return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
     }
     function n(e) {
-      if (e instanceof Uint8Array) return e;
-      if (ArrayBuffer.isView(e)) return new Uint8Array(e.buffer, e.byteOffset, e.byteLength);
-      if (e instanceof ArrayBuffer) return new Uint8Array(e);
+      return ArrayBuffer.isView(e)
+        ? new Uint8Array(e.buffer, e.byteOffset, e.byteLength)
+        : e instanceof ArrayBuffer
+          ? new Uint8Array(e)
+          : void 0;
     }
     function r(t, n) {
       if (e(t)) {

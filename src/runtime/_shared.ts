@@ -34,23 +34,24 @@ export function callEchoed(fn: () => unknown): [result: unknown, echoed: unknown
  * only kind of bytes an output stream may carry; `undefined` for anything else.
  */
 export function toBytes(value: unknown): Uint8Array | undefined {
-  if (value instanceof Uint8Array) return value;
-  if (ArrayBuffer.isView(value)) {
-    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-  }
-  if (value instanceof ArrayBuffer) return new Uint8Array(value);
-  return undefined;
+  return ArrayBuffer.isView(value)
+    ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+    : value instanceof ArrayBuffer
+      ? new Uint8Array(value)
+      : undefined;
 }
 
 /**
- * The text of an output value, as it reads once written: bytes (see `toBytes()`) are decoded
- * by the one streaming `decoder` of the output, in output order, and anything else is turned into
- * a string with `String()`, behind the bytes still pending. An empty string adds nothing to the
- * output, so it does not flush them (that would split a character around it).
+ * The text of an output value, as it reads once written: bytes (any `ArrayBufferView`, or an
+ * `ArrayBuffer`, which `TextDecoder` takes as they are) are decoded by the one streaming `decoder`
+ * of the output, in output order, and anything else is turned into a string with `String()`,
+ * behind the bytes still pending. An empty string adds nothing to the output, so it does not flush
+ * them (that would split a character around it).
  */
 export function decodeChunk(decoder: TextDecoder, value: unknown): string {
-  const bytes = toBytes(value);
-  if (bytes) return decoder.decode(bytes, { stream: true });
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return decoder.decode(value, { stream: true });
+  }
   const text = String(value);
   return text && decoder.decode() + text;
 }
