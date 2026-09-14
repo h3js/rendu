@@ -272,6 +272,8 @@ describe("defer", () => {
     // Even an empty <template for> replaces the placeholder, so no patch may go out at all:
     // whether the stream is written directly (the last pending entry) or races on its first chunk.
     const failing = () => parts([]);
+    // An incomplete multibyte character is not content: it would only flush to U+FFFD.
+    const failingPartial = () => parts([new Uint8Array([0xe2])]);
     const erroredResponse = () =>
       new Response(
         new ReadableStream({
@@ -283,6 +285,7 @@ describe("defer", () => {
 
     it.each([
       ["a stream", failing],
+      ["a stream after a partial multibyte character", failingPartial],
       ["a Response whose body errors immediately", erroredResponse],
       ["a function resolving to a failing stream", () => Promise.resolve(() => failing())],
     ])("emits no patch for %s as the last pending entry", async (_, make) => {
@@ -305,6 +308,7 @@ describe("defer", () => {
 
     it.each([
       ["a stream", failing],
+      ["a stream after a partial multibyte character", failingPartial],
       ["a Response whose body errors immediately", erroredResponse],
     ])("emits no patch for %s next to siblings", async (_, make) => {
       vi.spyOn(console, "error").mockImplementation(() => {});

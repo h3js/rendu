@@ -481,7 +481,7 @@ async function anonymous(__context__) {
               ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
             }
             let n = u.decode();
-            (n && w(n), !b && !t && C());
+            (n && (b || !t) && w(n), !b && !t && C());
             let r = b ? h() + `</template>` : ``;
             ((y = void 0), (b = !1), r && (S(r), S(`<script>__renduPatch()<\/script>`)), I());
           }

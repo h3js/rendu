@@ -829,8 +829,10 @@ export default function concatStreams(
           failed = true;
           console.error("[rendu] deferred value " + settled.entry.name + " failed:", error);
         }
+        // Bytes still pending decode to U+FFFD, which is content only if the value did not fail
+        // before any other: flush the decoder either way.
         const rest = decoder.decode();
-        if (rest) enqueue(rest);
+        if (rest && (patchOpen || !failed)) enqueue(rest);
         if (!patchOpen && !failed) openPatch();
         const end = patchOpen ? patchEnd() + "</template>" : "";
         patchName = undefined;
