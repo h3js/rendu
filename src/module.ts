@@ -144,11 +144,15 @@ export function compileTemplateToModule(
     }
   }
 
-  // Only template code can reference context values (text is never evaluated).
-  const code = parseTemplate(template)
+  // Only template code can reference context values (text is never evaluated). Comments are
+  // ignored when that is unambiguous for all code (see `stripComments()`).
+  const tokens = parseTemplate(template)
     .filter((token) => token.type !== "text")
-    .map((token) => token.contents)
-    .join("\n");
+    .map((token) => token.contents);
+  const stripped = tokens.map((contents) => stripComments(contents));
+  const code = (stripped.every((contents) => contents !== undefined) ? stripped : tokens).join(
+    "\n",
+  );
 
   // Module level imports are aliased (so they neither collide with the host module nor
   // are visible to the template) and re-bound to their name inside the render function.
@@ -228,4 +232,40 @@ export ${exportName === "default" ? "default async function" : `async function $
 }
 ${importLines.join("\n")}
 `;
+}
+
+/**
+ * Replace the `//` and `/* *\/` comments of a code snippet with a space.
+ *
+ * Returns `undefined` when the code has a quote or backtick, a `/` that does not start a
+ * comment (a division or regular expression) or an unterminated block comment. Without
+ * literals and divisions, `//` and `/*` can only start comments.
+ */
+function stripComments(code: string): string | undefined {
+  let result = "";
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i]!;
+    if (ch === "'" || ch === '"' || ch === "`") {
+      return undefined;
+    }
+    if (ch !== "/") {
+      result += ch;
+      continue;
+    }
+    let end = -1; // Index of the last comment character
+    if (code[i + 1] === "/") {
+      end = i + 1;
+      while (end + 1 < code.length && !"\n\r\u2028\u2029".includes(code[end + 1]!)) {
+        end++;
+      }
+    } else if (code[i + 1] === "*") {
+      end = code.indexOf("*/", i + 2) + 1;
+    }
+    if (end <= i) {
+      return undefined; // Division, regular expression or unterminated block comment
+    }
+    result += " ";
+    i = end;
+  }
+  return result;
 }
