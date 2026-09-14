@@ -43,10 +43,12 @@ const scriptServerRe = /* @__PURE__ */ new RegExp(
  */
 const tagRe = /<\?(?:js(?![\w-])|(?=[\s?=]))(?<equals>=)?(?<value>[\s\S]*?)\?>/g;
 
-const templateSyntaxRe = /* @__PURE__ */ new RegExp(
-  `(?:${scriptServerOpen})|(?:${tagRe.source})`,
-  "i",
-);
+/** The `scriptServerOpen` opener and `tagRe` (without `g` flag), for `hasTemplateSyntax()`. */
+const scriptServerOpenRe = /* @__PURE__ */ new RegExp(scriptServerOpen, "i");
+const tagTestRe = /* @__PURE__ */ new RegExp(tagRe.source);
+
+/** A `{{` opener that does not start an empty curly tag (`{{}}` or `{{{}}}`). */
+const curlyOpenRe = /\{\{(?!\}\}|\{\}\}\})/;
 
 /**
  * Parse a template string into `text`, `code` and `expr` tokens.
@@ -316,9 +318,13 @@ function skipQuoted(text: string, i: number): number {
  * Check if a template string contains template syntax.
  */
 export function hasTemplateSyntax(template: string): boolean {
-  // `{{ ... }}`: found with `indexOf()`, a lazy `{{[\s\S]*?}}` regex is quadratic.
-  const open = template.indexOf("{{");
+  // Without `<script server>` blocks (code, or an unclosed tag error) and tags, the whole
+  // template is one text chunk, in which the first `{{` opener that is not an empty tag
+  // renders an expression if any `}}` follows it (a lazy `{{[\s\S]*?}}` regex is quadratic).
+  const open = curlyOpenRe.exec(template);
   return (
-    (open !== -1 && template.indexOf("}}", open + 2) !== -1) || templateSyntaxRe.test(template)
+    (open !== null && template.indexOf("}}", open.index + 2) !== -1) ||
+    scriptServerOpenRe.test(template) ||
+    tagTestRe.test(template)
   );
 }

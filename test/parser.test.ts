@@ -15,6 +15,13 @@ describe("parser", () => {
       expect(hasTemplateSyntax('<?json {"a":1} ?>')).toBe(false);
     });
 
+    it("uppercase tags and empty curly tags are not template syntax", () => {
+      expect(hasTemplateSyntax("<?JS x ?>")).toBe(false);
+      expect(hasTemplateSyntax("{{}}")).toBe(false);
+      expect(hasTemplateSyntax("{{{}}}")).toBe(false);
+      expect(hasTemplateSyntax("{{}}} {{{}}}}")).toBe(false);
+    });
+
     it("with syntax", () => {
       expect(hasTemplateSyntax("Hello, <?= name ?>!")).toBe(true);
       expect(hasTemplateSyntax("{{ name }}")).toBe(true);
@@ -28,6 +35,34 @@ describe("parser", () => {
       expect(hasTemplateSyntax("<?js= x ?>")).toBe(true);
       expect(hasTemplateSyntax("<? x ?>")).toBe(true);
       expect(hasTemplateSyntax("<?=htmlspecialchars(x)?>")).toBe(true);
+      expect(hasTemplateSyntax("<SCRIPT Server>x</script>")).toBe(true);
+      expect(hasTemplateSyntax("{{{}}")).toBe(true);
+      expect(hasTemplateSyntax("{{}} {{ }}")).toBe(true);
+    });
+
+    it("agrees with parseTemplate", () => {
+      const parts = [
+        ..."{}<>?=/*'\"`$\\\n x",
+        ..."{{ }} {{{ }}} <? ?> <?js <?JS <?= <?x // ${ <script </script>".split(" "),
+        "<script server>",
+        "<SCRIPT Server>",
+        " server",
+      ];
+      let seed = 1;
+      const random = (n: number) => (seed = (seed * 48_271) % 2_147_483_647) % n;
+      for (let n = 0; n < 50_000; n++) {
+        let template = "";
+        for (let i = random(16); i >= 0; i--) {
+          template += parts[random(parts.length)];
+        }
+        let expected = true; // Unclosed `<script server>` throws
+        try {
+          expected = parseTemplate(template).some((token) => token.type !== "text");
+        } catch {}
+        if (hasTemplateSyntax(template) !== expected) {
+          expect({ template, hasTemplateSyntax: !expected }).toEqual({ template, expected });
+        }
+      }
     });
   });
 
