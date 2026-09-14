@@ -215,6 +215,23 @@ describe("parser", () => {
       expect(performance.now() - start).toBeLessThan(1000);
     });
 
+    it("unclosed tags and script server openers parse in linear time", () => {
+      const start = performance.now();
+      for (const template of [
+        "<? ".repeat(20_000),
+        "<?js= ".repeat(20_000),
+        "<script ".repeat(4000),
+        "<script server ".repeat(4000),
+        "<script a='<script server b=\" ".repeat(4000),
+        "<? <script server ".repeat(4000),
+      ]) {
+        expect(parseTemplate(template)).toEqual([{ type: "text", contents: template }]);
+        expect(hasTemplateSyntax(template)).toBe(false);
+      }
+      // These took seconds with the previous backtracking regexes.
+      expect(performance.now() - start).toBeLessThan(1000);
+    });
+
     it("code", () => {
       const tokens = parseTemplate("<?js if (true) { ?>123<?js } ?>");
       expect(tokens).toMatchObject([

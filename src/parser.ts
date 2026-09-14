@@ -3,49 +3,39 @@ export type Token = {
   contents: string;
 };
 
-/** An attribute value: quoted, or unquoted (no whitespace, quotes, `=`, `<` or `>`). */
-const attrValue = String.raw`(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)`;
+/** `<script` (the start of a `<script server>` opening tag, see `scriptServerOpenEnd()`). */
+const scriptOpenRe = /<script/gi;
 
-/** An attribute: a name with an optional value (quoted values are skipped whole). */
-const attr = String.raw`[^\s"'>/=]+(?:\s*=\s*${attrValue})?`;
+/** An attribute name (sticky, after its leading whitespace). */
+const attrNameRe = /[^\s"'>/=]+/y;
 
 /**
- * A `<script ...>` opening tag whose attribute list contains a standalone `server`
- * attribute (`<script server>`, `<script server type="module">`,
- * `<script type="module" server>`, `<script server="true">`).
- *
- * Attributes are matched one by one, so `server` only counts as an attribute name: not
- * as part of a longer tag name (`<scriptural server>`), a longer attribute name
- * (`data-server`, `server-side`) or an attribute value (`title=" server"`). Only the
- * first `server` is a candidate (the attributes before it cannot be `server`), which keeps
- * a long unterminated tag from backtracking over every occurrence.
+ * An attribute value (sticky, after the name): quoted, or unquoted (no whitespace, quotes,
+ * `=`, `<` or `>`).
  */
-const scriptServerOpen = String.raw`<script(?:\s+(?!server(?![^\s"'>/=]))${attr})*\s+server(?:\s*=\s*${attrValue})?(?=[\s/>])(?:\s+${attr})*\s*\/?>`;
+const attrValueRe = /\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)/y;
+
+/** Other `<script server>` opening tag parts (sticky, except the whole-name `server` test). */
+const spaceRe = /\s+/y;
+const serverAttrRe = /^server$/i;
+const serverAttrEndRe = /[\s/>]/y;
+const scriptOpenEndRe = /\s*\/?>/y;
 
 /**
- * A `</script>` closing tag. Like HTML, `</script` followed by whitespace or `/` also
- * closes up to the next `>` (`</script >`, `</script\n>`, `</script/>`).
+ * The body of a `<script server>` block (sticky, after the opening tag), up to its closing
+ * tag or the end of the template (unclosed). Like HTML, `</script` followed by whitespace or
+ * `/` also closes up to the next `>` (`</script >`, `</script\n>`, `</script/>`).
  */
-const scriptClose = String.raw`<\/script(?:[\s/][^<>]*)?>`;
-
-/** A `<script server>` block, up to its closing tag or the end of the template (unclosed). */
-const scriptServerRe = /* @__PURE__ */ new RegExp(
-  `${scriptServerOpen}([\\s\\S]*?)(?:(${scriptClose})|$)`,
-  "gi",
-);
+const scriptBodyRe = /([\s\S]*?)(?:(<\/script(?:[\s/][^<>]*)?>)|$)/iy;
 
 /**
- * A rendu tag: `<?= expr ?>`, `<?js code ?>` / `<?js= expr ?>` (with `js` not part of a
- * longer word) or `<? code ?>` where `<?` is followed by whitespace, `=` or `?`.
+ * A rendu tag opener: `<?=`, `<?js` / `<?js=` (with `js` not part of a longer word) or `<?`
+ * followed by whitespace, `=` or `?`. The tag ends at the first `?>` after the opener.
  *
  * `<?` followed by an ASCII letter or `_` starts an HTML processing instruction
  * (`<?marker name="x">`, `<?xml version="1.0"?>`, ...) and is left as text.
  */
-const tagRe = /<\?(?:js(?![\w-])|(?=[\s?=]))(?<equals>=)?(?<value>[\s\S]*?)\?>/g;
-
-/** The `scriptServerOpen` opener and `tagRe` (without `g` flag), for `hasTemplateSyntax()`. */
-const scriptServerOpenRe = /* @__PURE__ */ new RegExp(scriptServerOpen, "i");
-const tagTestRe = /* @__PURE__ */ new RegExp(tagRe.source);
+const tagOpenRe = /<\?(?:js(?![\w-])|(?=[\s?=]))(=)?/g;
 
 /** A `{{` opener that does not start an empty curly tag (`{{}}` or `{{{}}}`). */
 const curlyOpenRe = /\{\{(?!\}\}|\{\}\}\})/;
@@ -60,25 +50,25 @@ export function parseTemplate(template: string): Token[] {
 
   // <script server> ... </script> blocks are code, everything else is tags and text.
   const tokens: Token[] = [];
+  const memo = new Map<number, number>();
   let cursor = 0;
-  let match;
-  scriptServerRe.lastIndex = 0;
-  while ((match = scriptServerRe.exec(template))) {
-    if (!match[2]) {
+  let open;
+  while ((open = findScriptServerOpen(template, cursor, memo))) {
+    scriptBodyRe.lastIndex = open.end;
+    const [, code = "", close] = scriptBodyRe.exec(template)!;
+    if (!close) {
       // Never render server code as page text.
       throw new SyntaxError("Unclosed <script server> tag: missing </script>");
     }
-    if (match.index > cursor) {
-      pushTagTokens(tokens, template.slice(cursor, match.index));
+    if (open.start > cursor) {
+      pushTagTokens(tokens, template.slice(cursor, open.start));
     }
     // Keep the line breaks of the tags (`<script\n server>`) so code lines stay aligned.
-    const code = match[1] || "";
-    const open = match[0].slice(0, match[0].length - code.length - match[2].length);
     tokens.push({
       type: "code",
-      contents: lineBreaks(open) + code + lineBreaks(match[2]),
+      contents: lineBreaks(template.slice(open.start, open.end)) + code + lineBreaks(close),
     });
-    cursor = match.index + match[0].length;
+    cursor = scriptBodyRe.lastIndex;
   }
   if (cursor < template.length) {
     pushTagTokens(tokens, template.slice(cursor));
@@ -87,24 +77,102 @@ export function parseTemplate(template: string): Token[] {
   return tokens;
 }
 
+/**
+ * Find the first `<script ...>` opening tag from `from` whose attribute list contains a
+ * standalone `server` attribute (`<script server>`, `<script server type="module">`,
+ * `<script type="module" server>`, `<script server="true">`).
+ *
+ * Attributes are matched one by one, so `server` only counts as an attribute name: not
+ * as part of a longer tag name (`<scriptural server>`), a longer attribute name
+ * (`data-server`, `server-side`) or an attribute value (`title=" server"`).
+ */
+function findScriptServerOpen(
+  template: string,
+  from: number,
+  memo: Map<number, number>,
+): { start: number; end: number } | undefined {
+  scriptOpenRe.lastIndex = from;
+  let match;
+  while ((match = scriptOpenRe.exec(template))) {
+    const end = scriptServerOpenEnd(template, match.index + match[0].length, memo);
+    if (end !== -1) {
+      return { start: match.index, end };
+    }
+  }
+}
+
+/**
+ * Match the attributes of a `<script` opening tag from `pos` up to its `>` and return the
+ * end of the tag, or `-1` when it is not a `<script server>` opening tag.
+ *
+ * Every step between attributes only depends on the position and on whether `server` was
+ * seen, so results are memoized by both: an unterminated tag (`<script <script server ...`)
+ * is scanned once instead of once for every `<script` inside of it, keeping this linear.
+ */
+function scriptServerOpenEnd(template: string, pos: number, memo: Map<number, number>): number {
+  const keys: number[] = [];
+  let server = 0;
+  let end = -1;
+  for (;;) {
+    const key = pos * 2 + server;
+    const cached = memo.get(key);
+    if (cached !== undefined) {
+      end = cached;
+      break;
+    }
+    keys.push(key);
+    spaceRe.lastIndex = pos;
+    if (spaceRe.test(template)) {
+      attrNameRe.lastIndex = spaceRe.lastIndex;
+      const name = attrNameRe.exec(template);
+      if (name) {
+        pos = attrValueRe.lastIndex = attrNameRe.lastIndex;
+        if (attrValueRe.test(template)) {
+          pos = attrValueRe.lastIndex;
+        }
+        if (!server && serverAttrRe.test(name[0])) {
+          // (`server="x"` must be followed by whitespace, `/` or `>`)
+          serverAttrEndRe.lastIndex = pos;
+          if (!serverAttrEndRe.test(template)) {
+            break;
+          }
+          server = 1;
+        }
+        continue;
+      }
+    }
+    // No more attributes: the tag ends here (with `/>` or `>`) or this is not a server tag.
+    scriptOpenEndRe.lastIndex = pos;
+    if (server && scriptOpenEndRe.test(template)) {
+      end = scriptOpenEndRe.lastIndex;
+    }
+    break;
+  }
+  for (const key of keys) {
+    memo.set(key, end);
+  }
+  return end;
+}
+
 /** Split a chunk into `code` / `expr` tokens for rendu tags and text tokens in between. */
 function pushTagTokens(tokens: Token[], chunk: string): void {
   let cursor = 0;
   let match;
-  tagRe.lastIndex = 0;
-  while ((match = tagRe.exec(chunk))) {
-    const { equals, value } = match.groups || {};
+  tagOpenRe.lastIndex = 0;
+  while ((match = tagOpenRe.exec(chunk))) {
+    const end = chunk.indexOf("?>", tagOpenRe.lastIndex);
+    if (end === -1) {
+      break; // No later tag can close either (a lazy `[\s\S]*?\?>` regex is quadratic)
+    }
     if (match.index > cursor) {
       pushTextTokens(tokens, chunk.slice(cursor, match.index));
     }
-    if (equals) {
-      // Expression tag: <?= ... ?>
-      tokens.push({ type: "expr", contents: value || "" });
-    } else {
-      // Code tag: <? ... ?> or <?js ... ?>
-      tokens.push({ type: "code", contents: value || "" });
-    }
-    cursor = match.index + match[0].length;
+    tokens.push({
+      // Expression tag: <?= ... ?>, code tag: <? ... ?> or <?js ... ?>
+      type: match[1] ? "expr" : "code",
+      contents: chunk.slice(tagOpenRe.lastIndex, end),
+    });
+    cursor = tagOpenRe.lastIndex = end + 2;
   }
   if (cursor < chunk.length) {
     pushTextTokens(tokens, chunk.slice(cursor));
@@ -321,10 +389,12 @@ export function hasTemplateSyntax(template: string): boolean {
   // Without `<script server>` blocks (code, or an unclosed tag error) and tags, the whole
   // template is one text chunk, in which the first `{{` opener that is not an empty tag
   // renders an expression if any `}}` follows it (a lazy `{{[\s\S]*?}}` regex is quadratic).
+  // Likewise, only the first rendu tag opener needs a `?>` after it.
   const open = curlyOpenRe.exec(template);
+  tagOpenRe.lastIndex = 0;
   return (
     (open !== null && template.indexOf("}}", open.index + 2) !== -1) ||
-    scriptServerOpenRe.test(template) ||
-    tagTestRe.test(template)
+    findScriptServerOpen(template, 0, new Map()) !== undefined ||
+    (tagOpenRe.exec(template) !== null && template.includes("?>", tagOpenRe.lastIndex))
   );
 }
