@@ -360,19 +360,23 @@ async function anonymous(__context__) {
             let e = await Promise.race(w.values());
             if ((w.delete(e.entry), l.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
-              let t = e.value instanceof Response ? e.value.body : e.value;
-              if (t instanceof ReadableStream && w.size > 0) {
-                let n = t.getReader();
-                (c.add(n),
-                  w.set(
-                    e.entry,
-                    n.read().then(
-                      (t) => ({ entry: e.entry, reader: n, first: t }),
-                      (t) => ({ entry: e.entry, error: t, failed: !0 }),
-                    ),
-                  ));
-                continue;
-              }
+              let { entry: t, value: n } = e,
+                r = n instanceof Response ? n.body : n;
+              if (r instanceof ReadableStream && w.size > 0)
+                try {
+                  let e = r.getReader();
+                  (c.add(e),
+                    w.set(
+                      t,
+                      e.read().then(
+                        (n) => ({ entry: t, reader: e, first: n }),
+                        (e) => ({ entry: t, error: e, failed: !0 }),
+                      ),
+                    ));
+                  continue;
+                } catch (n) {
+                  e = { entry: t, error: n, failed: !0 };
+                }
             }
             if (e.failed) {
               (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), E());

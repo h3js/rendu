@@ -235,6 +235,20 @@ describe("defer", () => {
     );
   });
 
+  it("fails only its own patch when a racing deferred body is already locked", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const used = new Response("used");
+    await used.text();
+    const chunks = await collect(`<a><?= defer(used) ?></a><b><?= defer(slow) ?></b>`, {
+      used,
+      slow: after(20, "B"),
+    });
+    expect(norm(chunks.join(""))).toBe(
+      `<a><?marker name="d0"></a><b><?marker name="d1"></b><template for="d1">B</template>`,
+    );
+    expect(error).toHaveBeenCalledOnce();
+  });
+
   describe("a deferred value that fails before any content", () => {
     // Even an empty <template for> replaces the placeholder, so no patch may go out at all:
     // whether the stream is written directly (the last pending entry) or races on its first chunk.

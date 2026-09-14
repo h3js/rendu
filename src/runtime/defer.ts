@@ -706,22 +706,28 @@ export default function concatStreams(
       track();
       while (pending.size > 0) {
         if (state.cancelled) return;
-        const settled = await Promise.race(pending.values());
+        let settled = await Promise.race(pending.values());
         pending.delete(settled.entry);
         if (state.cancelled) return;
         if (!settled.failed && settled.reader === undefined) {
-          const body = settled.value instanceof Response ? settled.value.body : settled.value;
+          const { entry, value } = settled;
+          const body = value instanceof Response ? value.body : value;
           if (body instanceof ReadableStream && pending.size > 0) {
-            const reader: ReadableStreamDefaultReader<unknown> = body.getReader();
-            openReaders.add(reader);
-            pending.set(
-              settled.entry,
-              reader.read().then(
-                (first): Settled => ({ entry: settled.entry, reader, first }),
-                (error): Settled => ({ entry: settled.entry, error, failed: true }),
-              ),
-            );
-            continue;
+            try {
+              const reader: ReadableStreamDefaultReader<unknown> = body.getReader();
+              openReaders.add(reader);
+              pending.set(
+                entry,
+                reader.read().then(
+                  (first): Settled => ({ entry, reader, first }),
+                  (error): Settled => ({ entry, error, failed: true }),
+                ),
+              );
+              continue;
+            } catch (error) {
+              // A locked body (e.g. a Response that was already read) fails only its own entry.
+              settled = { entry, error, failed: true };
+            }
           }
         }
         if (settled.failed) {
