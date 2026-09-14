@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 import { compileTemplate } from "../src/compiler.ts";
 import { createRenderContext, renderToResponse, type RenderContext } from "../src/render.ts";
@@ -39,6 +40,22 @@ describe("render", () => {
         ]);
         expect({ ...cookies }).toEqual({ a: "1", b: "two" });
         expect(JSON.stringify(cookies)).toBe('{"a":"1","b":"two"}');
+      });
+
+      it("converts and inspects like a plain object", async () => {
+        const cookies = createRenderContext({
+          request: request({ headers: { cookie: "a=1; toString=2" } }),
+        }).$COOKIES;
+        expect(String(cookies)).toBe("[object Object]");
+        expect(`${cookies}`).toBe("[object Object]");
+        expect(Number(cookies)).toBeNaN();
+        expect(cookies.toString).toBe("2");
+        expect("valueOf" in cookies).toBe(false);
+        expect(Object.keys(cookies)).toEqual(["a", "toString"]);
+        expect({ ...cookies }).toEqual({ a: "1", toString: "2" });
+        expect(inspect(cookies)).toBe("{ a: '1', toString: '2' }");
+        const render = compileTemplate("{{ $COOKIES }}", { stream: false });
+        expect(await render(createRenderContext({ request: request() }))).toBe("[object Object]");
       });
 
       it("is empty without a request", () => {

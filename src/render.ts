@@ -212,6 +212,8 @@ function assertOpen(response: RenderResponse, what: string): void {
  *
  * The cookie header is only parsed on first access. All traps are backed by the parsed
  * map so `get`, `in`, `Object.keys()`, spread and `JSON.stringify()` are consistent.
+ * It converts to a string like a plain object (`"[object Object]"`) and `util.inspect()` /
+ * `console.log()` show the cookies.
  */
 export function createRenderCookies(req: Request | undefined): Readonly<Record<string, string>> {
   let parsed: Record<string, string> | undefined;
@@ -219,22 +221,34 @@ export function createRenderCookies(req: Request | undefined): Readonly<Record<s
     parsed ??= req ? (parseCookies(req.headers.get("cookie") || "") as Record<string, string>) : {};
     return parsed;
   };
-  // Note: the target is an empty, extensible null-prototype object so that the traps
-  // below are free to report whatever the parsed cookies contain.
-  return new Proxy(Object.create(null) as Record<string, string>, {
-    get(_target, prop) {
-      if (typeof prop !== "string") return undefined;
+  // Note: the target is an extensible null-prototype object (so inherited properties such as
+  // `toString` are never reported as cookies) with only non-enumerable, configurable symbol
+  // keys, so that the traps below are free to report whatever the parsed cookies contain.
+  const target = Object.create(null, {
+    [Symbol.toPrimitive]: {
+      value: (hint: string) => (hint === "number" ? Number.NaN : "[object Object]"),
+      configurable: true,
+    },
+    [Symbol.for("nodejs.util.inspect.custom")]: {
+      value: () => ({ ...cookies() }),
+      configurable: true,
+    },
+  }) as Record<string, string>;
+  return new Proxy(target, {
+    get(target, prop) {
+      if (typeof prop !== "string") return Reflect.get(target, prop);
       const all = cookies();
       return Object.hasOwn(all, prop) ? all[prop] : undefined;
     },
-    has(_target, prop) {
-      return typeof prop === "string" && Object.hasOwn(cookies(), prop);
+    has(target, prop) {
+      if (typeof prop !== "string") return Reflect.has(target, prop);
+      return Object.hasOwn(cookies(), prop);
     },
-    ownKeys() {
-      return Object.keys(cookies());
+    ownKeys(target) {
+      return [...Object.keys(cookies()), ...Object.getOwnPropertySymbols(target)];
     },
-    getOwnPropertyDescriptor(_target, prop) {
-      if (typeof prop !== "string") return undefined;
+    getOwnPropertyDescriptor(target, prop) {
+      if (typeof prop !== "string") return Reflect.getOwnPropertyDescriptor(target, prop);
       const all = cookies();
       if (!Object.hasOwn(all, prop)) return undefined;
       return { value: all[prop], enumerable: true, configurable: true, writable: false };

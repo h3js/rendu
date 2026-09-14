@@ -87,7 +87,7 @@ Create the `$COOKIES` context value: a lazily parsed, read-only view of the requ
 
 **Note:** Low-level building block for generated code (see `compileTemplateToModule`).
 
-The cookie header is only parsed on first access. All traps are backed by the parsed map so `get`, `in`, `Object.keys()`, spread and `JSON.stringify()` are consistent.
+The cookie header is only parsed on first access. All traps are backed by the parsed map so `get`, `in`, `Object.keys()`, spread and `JSON.stringify()` are consistent. It converts to a string like a plain object (`"[object Object]"`) and `util.inspect()` / `console.log()` show the cookies.
 
 ### `createRenderResponse()`
 
