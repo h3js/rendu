@@ -829,6 +829,44 @@ describe("defer patch framing", () => {
     expect(framing(html)).toEqual({ patches: ["d0", "d1"], after: true });
   });
 
+  it.each([
+    `<noscript><!--</noscript></template><b>x</b>`,
+    `<noscript><script></noscript></template><b>x</b>`,
+    `<noscript><a title="</noscript></template><b>x</b>">`,
+    `<noscript><template></noscript></template><b>x</b>`,
+    `<template><noscript></template></noscript></template><b>x</b>`,
+    `<select><title></template><b>x</b>`,
+    `<select><style></template><b>x</b>`,
+    `<select><template></select></template><iframe></template><b>x</b>`,
+  ])("keeps %j in its patch whether or not its element is raw text", async (value) => {
+    for (const chunks of [[value], [...value]]) {
+      const html = await renderPair(parts(chunks, false));
+      for (const scriptingEnabled of [true, false]) {
+        expect(framing(html, scriptingEnabled), html).toEqual({
+          patches: ["d0", "d1"],
+          after: true,
+        });
+        // Template content is not in `childNodes`: a <b> found there escaped its patch.
+        const found: string[] = [];
+        const walk = (node: any): void => {
+          if (node.nodeName === "b") found.push(node.nodeName);
+          node.childNodes?.forEach(walk);
+        };
+        walk(parse(`<!doctype html><body>${html}`, { scriptingEnabled }));
+        expect(found, html).toEqual([]);
+      }
+    }
+  });
+
+  it("leaves <noscript> and <select> content alone when it cannot break out", async () => {
+    const value =
+      `<noscript><img src="a.png" alt="a > b"><style>p>a{content:"</template>"}</style><!-- c --></noscript>` +
+      `<select><option>a</option></select><style>a::after{content:"<i"}</style>`;
+    const html = await renderPair(parts([...value], false));
+    expect(firstPatch(html)).toBe(value);
+    expect(framing(html)).toEqual({ patches: ["d0", "d1"], after: true });
+  });
+
   it("tracks tokenizer state across chunk boundaries", async () => {
     const html = await renderPair(
       parts(

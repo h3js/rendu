@@ -71,159 +71,188 @@ async function anonymous(__context__) {
       };
       return i;
     }
-    let r = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
-    function i() {
+    let r = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
+      i = [`noscript`, `style`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
+    function a() {
       let e = ``,
         t = `data`,
         n = 0,
-        i = 0,
         a = 0,
-        o = ``,
-        s = !1,
+        o = [],
+        s = -1,
         c = ``,
-        l = 0,
-        u = 0,
-        d = ``,
-        f = () => {
-          ((t = `data`),
-            o === `template`
-              ? (i += s ? -1 : 1)
-              : o === `noscript`
-                ? (a = Math.max(0, a + (s ? -1 : 1)))
-                : !s && r.includes(o) && ((t = `raw`), (c = o), (l = 0), (u = 0)));
+        l = !1,
+        u = ``,
+        d = 0,
+        f = 0,
+        p = ``,
+        m = (e) => {
+          let t = (t) => (e ? t.startsWith(c) : t === c);
+          return o.length > 0
+            ? t(`template`) || (!l && t(`plaintext`))
+            : l
+              ? a === 0 && t(`template`)
+              : t(`plaintext`);
         },
-        p = (r) => {
+        h = () => {
+          ((t = `data`),
+            c === `template`
+              ? ((a += l ? -1 : 1), a < s && (s = -1))
+              : c === `select`
+                ? !l && s < 0
+                  ? (s = a)
+                  : l && a === s && (s = -1)
+                : l
+                  ? o.includes(c) && (o = o.filter((e) => e !== c))
+                  : c === `noscript` || (s >= 0 && i.includes(c))
+                    ? o.includes(c) || o.push(c)
+                    : r.includes(c) && ((t = `raw`), (u = c), (d = 0), (f = 0)));
+        },
+        g = (r) => {
           ((r = e + r), (e = ``));
           let a = ``,
-            p = 0;
+            s = 0,
+            g = (e) => {
+              s <= e && ((a += r.slice(s, e) + `&lt;`), (s = e + 1));
+            },
+            _ = (e, t) => {
+              for (t < 0 && (t = r.length); o.length > 0 && e < t; e++)
+                r.charCodeAt(e) === 60 && g(e);
+              return t;
+            };
           for (let e = 0; e < r.length; e++) {
-            let m = r[e],
-              h = r.charCodeAt(e),
-              g = h === 32 || h === 9 || h === 10 || h === 12 || h === 13,
-              _ = (h >= 65 && h <= 90) || (h >= 97 && h <= 122);
-            switch (t) {
+            let a = r[e],
+              s = r.charCodeAt(e),
+              v = s === 32 || s === 9 || s === 10 || s === 12 || s === 13,
+              y = (s >= 65 && s <= 90) || (s >= 97 && s <= 122);
+            switch (
+              (s === 60 && o.length > 0 && t !== `data` && t !== `lt` && t[0] !== `r` && g(e), t)
+            ) {
               case `data`:
                 ((e = r.indexOf(`<`, e)),
-                  e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (o = ``), (s = !1)));
+                  e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (c = ``), (l = !1)));
                 break;
               case `lt`:
-                (m === `/`
+                (a === `/`
                   ? (t = `endlt`)
-                  : m === `!`
+                  : a === `!`
                     ? (t = `md`)
-                    : m === `?`
+                    : a === `?`
                       ? (t = `bogus`)
-                      : ((t = _ ? `name` : `data`), e--),
-                  (s = t === `endlt`));
+                      : ((t = y ? `name` : `data`), e--),
+                  (l = t === `endlt`));
                 break;
               case `endlt`:
-                m === `>` ? (t = `data`) : ((t = _ ? `name` : `bogus`), e--);
+                a === `>` ? (t = `data`) : ((t = y ? `name` : `bogus`), e--);
                 break;
               case `name`:
-                g || m === `/`
+                v || a === `/`
                   ? (t = `attr`)
-                  : m === `>`
-                    ? f()
-                    : (o.length < 10 && (o += _ ? m.toLowerCase() : m),
-                      (s ? i === 0 && o === `template` : o === `plaintext`) &&
-                        ((a += r.slice(p, n) + `&lt;`), (p = n + 1), (t = `data`)));
+                  : a === `>`
+                    ? h()
+                    : (c.length < 10 && (c += y ? a.toLowerCase() : a),
+                      m(!1) && (g(n), (t = `data`)));
                 break;
               case `attr`:
-                m === `>` ? f() : !g && m !== `/` && (t = `aname`);
+                a === `>` ? h() : !v && a !== `/` && (t = `aname`);
                 break;
               case `aname`:
-                m === `>` ? f() : m === `/` ? (t = `attr`) : m === `=` && (t = `aval`);
+                a === `>` ? h() : a === `/` ? (t = `attr`) : a === `=` && (t = `aval`);
                 break;
               case `aval`:
-                m === `>` ? f() : m === `"` ? (t = `dq`) : m === `'` ? (t = `sq`) : g || (t = `uq`);
+                a === `>` ? h() : a === `"` ? (t = `dq`) : a === `'` ? (t = `sq`) : v || (t = `uq`);
                 break;
               case `dq`:
               case `sq`:
-                ((e = r.indexOf(t === `dq` ? `"` : `'`, e)), e < 0 ? (e = r.length) : (t = `attr`));
+                ((e = _(e, r.indexOf(t === `dq` ? `"` : `'`, e))), e < r.length && (t = `attr`));
                 break;
               case `uq`:
-                m === `>` ? f() : g && (t = `attr`);
+                a === `>` ? h() : v && (t = `attr`);
                 break;
               case `md`:
               case `mdd`:
-                m === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
+                a === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
                 break;
               case `bogus`:
-                ((e = r.indexOf(`>`, e)), e < 0 ? (e = r.length) : (t = `data`));
+                ((e = _(e, r.indexOf(`>`, e))), e < r.length && (t = `data`));
                 break;
               case `cs`:
               case `csd`:
-                m === `>`
+                a === `>`
                   ? (t = `data`)
-                  : m === `-`
+                  : a === `-`
                     ? (t = t === `cs` ? `csd` : `ce`)
                     : ((t = `c`), e--);
                 break;
               case `c`:
-                ((e = r.indexOf(`-`, e)), e < 0 ? (e = r.length) : (t = `ced`));
+                ((e = _(e, r.indexOf(`-`, e))), e < r.length && (t = `ced`));
                 break;
               case `ced`:
-                m === `-` ? (t = `ce`) : ((t = `c`), e--);
+                a === `-` ? (t = `ce`) : ((t = `c`), e--);
                 break;
               case `ce`:
               case `ceb`:
-                m === `>`
+                a === `>`
                   ? (t = `data`)
-                  : m === `-`
+                  : a === `-`
                     ? (t = t === `ce` ? `ce` : `ced`)
-                    : m === `!` && t === `ce`
+                    : a === `!` && t === `ce`
                       ? (t = `ceb`)
                       : ((t = `c`), e--);
                 break;
               case `raw`:
-                l === 0
-                  ? ((e = r.indexOf(`<`, e)), e < 0 ? (e = r.length) : (t = `rlt`))
-                  : m === `<`
-                    ? ((t = `rlt`), (u = 0))
-                    : m === `-`
-                      ? u++
-                      : (m === `>` && u > 1 && (l = 0), (u = 0));
+                d === 0
+                  ? ((e = r.indexOf(`<`, e)), e < 0 ? (e = r.length) : ((t = `rlt`), (n = e)))
+                  : a === `<`
+                    ? ((t = `rlt`), (n = e), (f = 0))
+                    : a === `-`
+                      ? f++
+                      : (a === `>` && f > 1 && (d = 0), (f = 0));
                 break;
               case `rlt`:
-                ((d = ``),
-                  m === `/`
-                    ? (t = l === 2 ? `rdname` : `rname`)
-                    : m === `!` && c === `script` && l === 0
+                ((p = ``),
+                  a === `/`
+                    ? (t = d === 2 ? `rdname` : `rname`)
+                    : a === `!` && u === `script` && d === 0
                       ? (t = `rbang`)
-                      : ((t = _ && l === 1 ? `rdname` : `raw`), e--));
+                      : ((t = y && d === 1 ? `rdname` : `raw`), e--));
                 break;
               case `rbang`:
               case `rbangd`:
-                m === `-`
+                a === `-`
                   ? t === `rbang`
                     ? (t = `rbangd`)
-                    : ((t = `raw`), (l = 1), (u = 2))
+                    : ((t = `raw`), (d = 1), (f = 2))
                   : ((t = `raw`), e--);
                 break;
               case `rname`:
               case `rdname`:
-                _
-                  ? d.length < 10 && (d += m.toLowerCase())
-                  : !g && m !== `/` && m !== `>`
+                y
+                  ? (p.length < 10 && (p += a.toLowerCase()),
+                    p !== u && o.length > 0 && i.includes(p) && g(n))
+                  : !v && a !== `/` && a !== `>`
                     ? ((t = `raw`), e--)
                     : t === `rdname`
-                      ? ((t = `raw`), d === `script` && (l = 3 - l))
-                      : d === c
-                        ? ((t = `attr`), (o = c), (s = !0), m === `>` && f())
+                      ? ((t = `raw`), p === `script` && (d = 3 - d))
+                      : p === u
+                        ? ((t = `attr`), (c = u), (l = !0), a === `>` && h())
                         : ((t = `raw`), e--);
             }
           }
-          return (t === `lt` || t === `endlt` || t === `name`) &&
-            (s ? i === 0 && `template`.startsWith(o) : `plaintext`.startsWith(o))
-            ? ((e = r.slice(n)), (t = `data`), a + r.slice(p, n))
-            : a + r.slice(p);
+          return ((t === `lt` || t === `endlt` || t === `name`) && m(!0)) ||
+            (o.length > 0 &&
+              s <= n &&
+              (t === `rlt` ||
+                ((t === `rname` || t === `rdname`) && i.some((e) => e.startsWith(p)))))
+            ? ((e = r.slice(n)), (t = t[0] === `r` ? `raw` : `data`), a + r.slice(s, n))
+            : a + r.slice(s);
         };
       return {
-        guard: p,
+        guard: g,
         end: () => {
           let n = e && `&lt;` + e.slice(1);
-          for (e = ``; t !== `data` || i > 0 || a > 0;)
-            n += p(
+          for (e = ``; t !== `data` || a > 0 || o.length > 0;)
+            n += g(
               t === `dq`
                 ? `">`
                 : t === `sq`
@@ -231,12 +260,12 @@ async function anonymous(__context__) {
                   : t[0] === `c`
                     ? `-->`
                     : t[0] === `r`
-                      ? l === 2
+                      ? d === 2
                         ? `-->`
-                        : `</` + c + `>`
+                        : `</` + u + `>`
                       : t === `data`
-                        ? a > 0
-                          ? `</noscript>`
+                        ? o.length > 0
+                          ? `</` + o[0] + `>`
                           : `</template>`
                         : `>`,
             );
@@ -244,7 +273,7 @@ async function anonymous(__context__) {
         },
       };
     }
-    function a(e) {
+    function o(e) {
       let t = new Set(),
         n = `name="` + e,
         r = n.length + 20,
@@ -263,20 +292,20 @@ async function anonymous(__context__) {
         },
       };
     }
-    function o(e, t, r) {
-      let o = new TextEncoder(),
+    function s(e, t, r) {
+      let i = new TextEncoder(),
         s = new TextDecoder(),
         c = new Set(),
         l = { cancelled: !1, activeReader: void 0 };
       return new ReadableStream({
         async pull(u) {
-          let { guard: d, end: f } = i(),
-            { seen: p, scan: m } = a(r),
+          let { guard: d, end: f } = a(),
+            { seen: p, scan: m } = o(r),
             h,
             g = !1,
             _ = !1,
             v = (e) => {
-              l.cancelled || (t.length > 0 && m(e), u.enqueue(o.encode(e)));
+              l.cancelled || (t.length > 0 && m(e), u.enqueue(i.encode(e)));
             },
             y = () => {
               ((g = !0),
@@ -297,7 +326,7 @@ async function anonymous(__context__) {
               if (!t) return;
               (g || y(), m(t));
               let n = d(t);
-              n && u.enqueue(o.encode(n));
+              n && u.enqueue(i.encode(n));
             },
             x = n(l, b);
           for (let t of e) {
@@ -382,7 +411,7 @@ async function anonymous(__context__) {
         },
       });
     }
-    return o;
+    return s;
   })();
   __sink__ = void 0;
   return concatStreams(__chunks__, __deferred__, __deferId__);
