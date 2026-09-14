@@ -71,6 +71,66 @@ describe("runtime", () => {
       const chunks = [bytes.slice(0, 2), bytes.slice(2, 9), bytes.slice(9)];
       expect(await renderStream("<?= stream ?>", { stream: streamOf(chunks) })).toBe("héllo 世界");
     });
+
+    it("decodes bytes across values, streams and echoes in output order, like streaming", async () => {
+      const cases: [string, () => Record<string, any>][] = [
+        [
+          "<?= a ?><?= b ?>",
+          () => ({ a: new Uint8Array([0xe2, 0x82]), b: new Uint8Array([0xac]) }),
+        ],
+        [
+          "<?= a ?><?= b ?>",
+          () => ({ a: new Uint8Array([0xe2]), b: streamOf([new Uint8Array([0x82, 0xac])]) }),
+        ],
+        [
+          "<?= a ?><? const b = () => { echo(new Uint8Array([0x82])); return new Uint8Array([0xac]) } ?><?= b ?>",
+          () => ({ a: new Uint8Array([0xe2]) }),
+        ],
+        // A string flushes the pending bytes ahead of it.
+        [
+          "<?= a ?>",
+          () => ({ a: streamOf([new Uint8Array([0x61, 0xe2]), "x", new Uint8Array([0x62])]) }),
+        ],
+        ["<?= a ?>x", () => ({ a: new Uint8Array([0xe2]) })],
+        // Other stream chunks are rendered via String().
+        ["<?= a ?>", () => ({ a: streamOf([1, "x", true, null]) })],
+        // An empty string does not split a character.
+        [
+          "<?= a ?><?= b ?><?= c ?><?= a ?><?= d ?><?= c ?>",
+          () => ({
+            a: new Uint8Array([0xe2, 0x82]),
+            b: "",
+            c: new Uint8Array([0xac]),
+            d: Promise.resolve(""),
+          }),
+        ],
+        [
+          "<?= a ?>",
+          () => ({ a: streamOf([new Uint8Array([0xe2, 0x82]), "", new Uint8Array([0xac])]) }),
+        ],
+      ];
+      for (const [template, context] of cases) {
+        const text = await renderText(template, context());
+        expect(text).toBe(await renderStream(template, context()));
+      }
+      expect(await renderText(cases[0]![0], cases[0]![1]())).toBe("€");
+      expect(await renderText(cases[3]![0], cases[3]![1]())).toBe("a�xb");
+      expect(await renderText(cases[5]![0], cases[5]![1]())).toBe("1xtruenull");
+      expect(await renderText(cases[6]![0], cases[6]![1]())).toBe("€€");
+      expect(await renderText(cases[7]![0], cases[7]![1]())).toBe("€");
+    });
+
+    it("decodes bytes in a defer() patch like streaming", async () => {
+      const template = "<?= defer(a) ?>|<?= defer(b) ?>";
+      const context = () => ({
+        a: streamOf([new Uint8Array([0xe2, 0x82]), "", new Uint8Array([0xac])]),
+        b: streamOf([new Uint8Array([0x61, 0xe2]), "x", new Uint8Array([0x82, 0xac])]),
+      });
+      expect(await renderText(template, context())).toBe("€|a�x��");
+      const stream = await renderStream(template, context());
+      expect(stream).toMatch(/<template for="\w+0">€<\/template>/);
+      expect(stream).toMatch(/<template for="\w+1">a�x��<\/template>/);
+    });
   });
 
   describe("Response values", () => {

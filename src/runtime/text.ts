@@ -1,9 +1,10 @@
-import { callEchoed, discard, isThenable } from "./_shared.ts";
+import { callEchoed, decodeChunk, discard, isThenable } from "./_shared.ts";
 
 /**
  * Text runtime: renders the chunks in order into a string. A function chunk's synchronous
  * `echo()` output is rendered in place, right before its result (`callEchoed()`), the same as in
- * streaming mode.
+ * streaming mode. Bytes are decoded the way they read once streamed: by one streaming
+ * `TextDecoder` in output order (`decodeChunk()`), flushed at the end.
  *
  * Built twice, with `__DEFER__` on and off: only a template that inlines `defer()` gets the
  * marker replacement (`renderDeferred()` below).
@@ -12,7 +13,9 @@ import { callEchoed, discard, isThenable } from "./_shared.ts";
 /** Build flag: the template inlines the text `defer()`, and the generated code passes its queue. */
 declare const __DEFER__: boolean;
 
-async function render(chunks: unknown[]): Promise<string> {
+async function render(chunks: unknown[], decoder?: TextDecoder): Promise<string> {
+  const top = !decoder;
+  decoder ??= new TextDecoder();
   let out = "";
   for (let chunk of chunks) {
     try {
@@ -20,7 +23,7 @@ async function render(chunks: unknown[]): Promise<string> {
         const [result, echoed] = callEchoed(chunk as () => unknown);
         chunk = result;
         if (echoed.length > 0) {
-          out += await render(echoed);
+          out += await render(echoed, decoder);
         }
       }
       if (isThenable(chunk)) {
@@ -34,24 +37,17 @@ async function render(chunks: unknown[]): Promise<string> {
       }
       if (chunk instanceof ReadableStream) {
         const reader: ReadableStreamDefaultReader<unknown> = chunk.getReader();
-        const decoder = new TextDecoder();
         try {
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
-            out +=
-              typeof value === "string"
-                ? value
-                : decoder.decode(value as AllowSharedBufferSource, { stream: true });
+            out += decodeChunk(decoder, value);
           }
-          out += decoder.decode();
         } finally {
           reader.releaseLock();
         }
-      } else if (typeof chunk === "string") {
-        out += chunk;
       } else {
-        out += ArrayBuffer.isView(chunk) ? new TextDecoder().decode(chunk) : String(chunk);
+        out += decodeChunk(decoder, chunk);
       }
     } catch (error) {
       // Release what will not be read: the chunks after this one, and a function's result.
@@ -59,7 +55,7 @@ async function render(chunks: unknown[]): Promise<string> {
       throw error;
     }
   }
-  return out;
+  return top ? out + decoder.decode() : out;
 }
 
 /** A value queued by the text `defer()`: its marker name and its (already settling) value. */

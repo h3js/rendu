@@ -34,6 +34,18 @@ export function callEchoed(fn: () => unknown): [result: unknown, echoed: unknown
 }
 
 /**
+ * The text of an output value, as it reads once written: bytes (any `ArrayBufferView`) are decoded
+ * by the one streaming `decoder` of the output, in output order, and anything else is turned into
+ * a string with `String()`, behind the bytes still pending. An empty string adds nothing to the
+ * output, so it does not flush them (that would split a character around it).
+ */
+export function decodeChunk(decoder: TextDecoder, value: unknown): string {
+  if (ArrayBuffer.isView(value)) return decoder.decode(value, { stream: true });
+  const text = String(value);
+  return text && decoder.decode() + text;
+}
+
+/**
  * Release a chunk that will not be written (the output was cancelled or the render failed):
  * cancel its `ReadableStream` or `Response` body, now or once a promise resolves to one. A
  * function is not called, and a locked body is left to whoever holds its reader.
