@@ -11,18 +11,6 @@ import { createWrite, discard, toBytes, type StreamState } from "./_shared.ts";
 export default function concatStreams(chunks: unknown[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const state: StreamState = { cancelled: false, activeReader: undefined };
-  /**
-   * Cancel the output, or clean up after a chunk failed it: the chunk being written releases
-   * itself (`write()`), the others are discarded (those already written are closed by now).
-   */
-  const abort = (reason: unknown) => {
-    state.cancelled = true;
-    state.reason = reason;
-    const reader = state.activeReader;
-    state.activeReader = undefined;
-    for (const chunk of chunks) discard(chunk, reason);
-    return reader?.cancel(reason);
-  };
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       const enqueue = (value: unknown) => {
@@ -30,18 +18,24 @@ export default function concatStreams(chunks: unknown[]): ReadableStream<Uint8Ar
         controller.enqueue(toBytes(value) ?? encoder.encode(String(value)));
       };
       const write = createWrite(state, enqueue);
-      try {
-        for (const chunk of chunks) {
-          if (state.cancelled) return;
-          await write(chunk);
-        }
-      } catch (error) {
-        abort(error);
-        throw error;
+      for (const chunk of chunks) {
+        if (state.cancelled) return;
+        await write(chunk);
       }
       if (state.cancelled) return;
       controller.close();
     },
-    cancel: abort,
+    /**
+     * Cancel the output: the chunk being written releases itself (`write()`), the others are
+     * discarded (those already written are closed by now).
+     */
+    cancel(reason) {
+      state.cancelled = true;
+      state.reason = reason;
+      const reader = state.activeReader;
+      state.activeReader = undefined;
+      for (const chunk of chunks) discard(chunk, reason);
+      return reader?.cancel(reason);
+    },
   });
 }

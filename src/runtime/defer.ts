@@ -671,24 +671,6 @@ export default function concatStreams(
   const decoder = new TextDecoder();
   const openReaders = new Set<ReadableStreamDefaultReader<unknown>>();
   const state: StreamState = { cancelled: false, activeReader: undefined };
-  /**
-   * Cancel the output, or clean up after a main chunk failed it: also release the upstream bodies
-   * held by racing readers and by the chunks and deferred values that are not written yet (the
-   * one being written releases itself, see `createWrite()`).
-   */
-  const abort = (reason: unknown) => {
-    state.cancelled = true;
-    state.reason = reason;
-    const reader = state.activeReader;
-    state.activeReader = undefined;
-    for (const open of openReaders) open.cancel(reason).catch(() => {});
-    openReaders.clear();
-    for (const chunk of chunks) discard(chunk, reason);
-    for (const entry of deferred) {
-      entry.settled?.then((settled) => discard("value" in settled && settled.value, reason));
-    }
-    return reader?.cancel(reason);
-  };
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       /** The open patch's framing: a fresh tokenizer for every patch (see `openPatch()`). */
@@ -749,14 +731,9 @@ export default function concatStreams(
 
       const write = createWrite(state, enqueue);
 
-      try {
-        for (const chunk of chunks) {
-          if (state.cancelled) return;
-          await write(chunk);
-        }
-      } catch (error) {
-        abort(error);
-        throw error;
+      for (const chunk of chunks) {
+        if (state.cancelled) return;
+        await write(chunk);
       }
 
       /*
@@ -949,6 +926,23 @@ export default function concatStreams(
       controller.close();
     },
 
-    cancel: abort,
+    /**
+     * Cancel the output and release the upstream bodies held by racing readers and by the chunks
+     * and deferred values that are not written yet (the one being written releases itself, see
+     * `createWrite()`).
+     */
+    cancel(reason) {
+      state.cancelled = true;
+      state.reason = reason;
+      const reader = state.activeReader;
+      state.activeReader = undefined;
+      for (const open of openReaders) open.cancel(reason).catch(() => {});
+      openReaders.clear();
+      for (const chunk of chunks) discard(chunk, reason);
+      for (const entry of deferred) {
+        entry.settled?.then((settled) => discard("value" in settled && settled.value, reason));
+      }
+      return reader?.cancel(reason);
+    },
   });
 }

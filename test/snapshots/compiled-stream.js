@@ -20,16 +20,13 @@ async function anonymous(__context__) {
     }
     function t(t) {
       let n = (__sink__ = []),
-        i;
+        r;
       try {
-        i = t();
-      } catch (e) {
-        for (let t of n) r(t, e);
-        throw e;
+        r = t();
       } finally {
         __sink__ = void 0;
       }
-      return (n.length > 0 && e(i) && i.then(void 0, () => {}), [i, n]);
+      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
     }
     function n(e) {
       if (e instanceof Uint8Array) return e;
@@ -52,12 +49,7 @@ async function anonymous(__context__) {
         if (typeof o == `function` && !n.cancelled) {
           let [e, n] = t(o);
           o = e;
-          try {
-            for (let e of n) await a(e);
-          } catch (t) {
-            for (let i of [...n, e]) r(i, t);
-            throw t;
-          }
+          for (let e of n) await a(e);
         }
         if ((e(o) && !n.cancelled && (o = await o), n.cancelled)) {
           r(o, n.reason);
@@ -84,30 +76,25 @@ async function anonymous(__context__) {
     }
     function a(e) {
       let t = new TextEncoder(),
-        a = { cancelled: !1, activeReader: void 0 },
-        o = (t) => {
+        a = { cancelled: !1, activeReader: void 0 };
+      return new ReadableStream({
+        async pull(r) {
+          let o = i(a, (e) => {
+            a.cancelled || r.enqueue(n(e) ?? t.encode(String(e)));
+          });
+          for (let t of e) {
+            if (a.cancelled) return;
+            await o(t);
+          }
+          a.cancelled || r.close();
+        },
+        cancel(t) {
           ((a.cancelled = !0), (a.reason = t));
           let n = a.activeReader;
           a.activeReader = void 0;
           for (let n of e) r(n, t);
           return n?.cancel(t);
-        };
-      return new ReadableStream({
-        async pull(r) {
-          let s = i(a, (e) => {
-            a.cancelled || r.enqueue(n(e) ?? t.encode(String(e)));
-          });
-          try {
-            for (let t of e) {
-              if (a.cancelled) return;
-              await s(t);
-            }
-          } catch (e) {
-            throw (o(e), e);
-          }
-          a.cancelled || r.close();
         },
-        cancel: o,
       });
     }
     return a;

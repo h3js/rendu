@@ -259,13 +259,28 @@ describe("defer", () => {
     expect(error).toHaveBeenCalledOnce();
   });
 
-  it("cancels the deferred values left unread when text mode fails", async () => {
-    let cancelled: unknown;
-    const body = new ReadableStream({ cancel: (reason) => void (cancelled = reason) });
-    const render = compileTemplate(`<?= defer(body) ?><?= bad ?>`, { stream: false });
-    await expect(render({ body, bad: Promise.reject(new Error("boom")) })).rejects.toThrow("boom");
+  it("cancels racing readers and deferred bodies when the output is cancelled", async () => {
+    const log: string[] = [];
+    const logging = (name: string, pull?: () => Promise<void>) =>
+      new ReadableStream({
+        pull,
+        cancel: (reason) => void log.push(`${name} cancelled: ${reason}`),
+      });
+    const late = gate<ReadableStream>();
+    const render = compileTemplate(`a<?= defer(racing) ?><?= defer(late.promise) ?>`, {
+      stream: true,
+    });
+    const stream = (await render({
+      racing: logging("racing", () => new Promise(() => {})),
+      late,
+    })) as ReadableStream<Uint8Array>;
+    const reader = stream.getReader();
+    await reader.read();
+    await after(0, undefined); // let the flush loop take a reader to race `racing`
+    await reader.cancel("gone");
+    late.open(logging("late"));
     await after(0, undefined);
-    expect(cancelled).toEqual(new Error("boom"));
+    expect(log.toSorted()).toEqual(["late cancelled: gone", "racing cancelled: gone"]);
   });
 
   describe("a deferred value that fails before any content", () => {

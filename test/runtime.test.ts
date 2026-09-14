@@ -246,60 +246,6 @@ describe("runtime", () => {
         ]);
       },
     );
-
-    it.each([true, false])(
-      "cancels the chunks left unread when a chunk fails the render (stream: %s)",
-      async (stream) => {
-        const log: string[] = [];
-        const result = compileTemplate(`<?= () => fn(echo) ?><?= later ?>`, { stream })({
-          fn: (echo: (chunk: unknown) => void) => {
-            echo(Promise.reject(new Error("boom")));
-            return tracked("result", log);
-          },
-          later: tracked("later", log),
-        });
-        const render = async () => {
-          const value = await result;
-          if (stream) await new Response(value as ReadableStream).text();
-        };
-        await expect(render()).rejects.toThrow("boom");
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        expect(log.toSorted()).toEqual([
-          "later cancelled: Error: boom",
-          "result cancelled: Error: boom",
-        ]);
-      },
-    );
-
-    it.each([
-      [true, ""],
-      [false, ""],
-      [true, "<?= defer('d') ?>"],
-      [false, "<?= defer('d') ?>"],
-    ])(
-      "cancels what a function chunk echoed before throwing (stream: %s) %s",
-      async (stream, prefix) => {
-        const log: string[] = [];
-        const render = async () => {
-          const value = await compileTemplate(`${prefix}<?= () => fn(echo) ?><?= later ?>`, {
-            stream,
-          })({
-            fn: (echo: (chunk: unknown) => void) => {
-              echo(tracked("echoed", log));
-              throw new Error("sync");
-            },
-            later: tracked("later", log),
-          });
-          if (stream) await new Response(value as ReadableStream).text();
-        };
-        await expect(render()).rejects.toThrow("sync");
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        expect(log.toSorted()).toEqual([
-          "echoed cancelled: Error: sync",
-          "later cancelled: Error: sync",
-        ]);
-      },
-    );
   });
 
   describe("functions and thenables", () => {

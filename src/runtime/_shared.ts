@@ -20,10 +20,6 @@ export function callEchoed(fn: () => unknown): [result: unknown, echoed: unknown
   let result: unknown;
   try {
     result = fn();
-  } catch (error) {
-    // What it echoed before throwing will not be written either.
-    for (const chunk of echoed) discard(chunk, error);
-    throw error;
   } finally {
     __sink__ = undefined;
   }
@@ -60,9 +56,9 @@ export function decodeChunk(decoder: TextDecoder, value: unknown): string {
 }
 
 /**
- * Release a chunk that will not be written (the output was cancelled or the render failed):
- * cancel its `ReadableStream` or `Response` body, now or once a promise resolves to one. A
- * function is not called, and a locked body is left to whoever holds its reader.
+ * Release a chunk that will not be written because the output was cancelled: cancel its
+ * `ReadableStream` or `Response` body, now or once a promise resolves to one. A function is not
+ * called, and a locked body is left to whoever holds its reader.
  */
 export function discard(chunk: unknown, reason: unknown): void {
   if (isThenable(chunk)) {
@@ -79,7 +75,7 @@ export function discard(chunk: unknown, reason: unknown): void {
 /** State that `concatStreams()` shares between `write()`, its flush loop and `cancel()`. */
 export interface StreamState {
   cancelled: boolean;
-  /** The cancel reason (or the error that failed the render), passed on to `discard()`. */
+  /** The cancel reason, passed on to `discard()`. */
   reason?: unknown;
   /** The reader of the stream chunk being written, cancelled along with the output. */
   activeReader: ReadableStreamDefaultReader<unknown> | undefined;
@@ -104,13 +100,8 @@ export function createWrite(
     if (typeof chunk === "function" && !state.cancelled) {
       const [result, echoed] = callEchoed(chunk as () => unknown);
       chunk = result;
-      try {
-        for (const part of echoed) {
-          await write(part);
-        }
-      } catch (error) {
-        for (const part of [...echoed, result]) discard(part, error);
-        throw error;
+      for (const part of echoed) {
+        await write(part);
       }
     }
     if (isThenable(chunk) && !state.cancelled) {

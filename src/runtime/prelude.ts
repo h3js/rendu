@@ -19,8 +19,7 @@
  * A promise chunk is only awaited when the runtime reaches it, after the body has ended and the
  * chunks before it are written (or never, if the body throws), so it gets a rejection handler
  * right away (awaiting it later still throws): otherwise its rejection would be unhandled in the
- * meantime. (When the body throws, the runtime never sees the chunks, so a stream or `Response`
- * echoed before that is not cancelled either: only failures inside the runtime discard them.)
+ * meantime.
  */
 
 const __chunks__: unknown[] = [];

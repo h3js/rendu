@@ -1,4 +1,4 @@
-import { callEchoed, decodeChunk, discard, isThenable } from "./_shared.ts";
+import { callEchoed, decodeChunk, isThenable } from "./_shared.ts";
 
 /**
  * Text runtime: renders the chunks in order into a string. A function chunk's synchronous
@@ -18,41 +18,35 @@ async function render(chunks: unknown[], decoder?: TextDecoder): Promise<string>
   decoder ??= new TextDecoder();
   let out = "";
   for (let chunk of chunks) {
-    try {
-      if (typeof chunk === "function") {
-        const [result, echoed] = callEchoed(chunk as () => unknown);
-        chunk = result;
-        if (echoed.length > 0) {
-          out += await render(echoed, decoder);
+    if (typeof chunk === "function") {
+      const [result, echoed] = callEchoed(chunk as () => unknown);
+      chunk = result;
+      if (echoed.length > 0) {
+        out += await render(echoed, decoder);
+      }
+    }
+    if (isThenable(chunk)) {
+      chunk = await chunk;
+    }
+    if (chunk instanceof Response) {
+      chunk = chunk.body;
+    }
+    if (chunk === null || chunk === undefined) {
+      continue;
+    }
+    if (chunk instanceof ReadableStream) {
+      const reader: ReadableStreamDefaultReader<unknown> = chunk.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          out += decodeChunk(decoder, value);
         }
+      } finally {
+        reader.releaseLock();
       }
-      if (isThenable(chunk)) {
-        chunk = await chunk;
-      }
-      if (chunk instanceof Response) {
-        chunk = chunk.body;
-      }
-      if (chunk === null || chunk === undefined) {
-        continue;
-      }
-      if (chunk instanceof ReadableStream) {
-        const reader: ReadableStreamDefaultReader<unknown> = chunk.getReader();
-        try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            out += decodeChunk(decoder, value);
-          }
-        } finally {
-          reader.releaseLock();
-        }
-      } else {
-        out += decodeChunk(decoder, chunk);
-      }
-    } catch (error) {
-      // Release what will not be read: the chunks after this one, and a function's result.
-      for (const rest of [chunk, ...chunks]) discard(rest, error);
-      throw error;
+    } else {
+      out += decodeChunk(decoder, chunk);
     }
   }
   return top ? out + decoder.decode() : out;
@@ -74,24 +68,17 @@ type TextDeferEntry = [name: string, value: Promise<unknown>];
  *   it, whichever was deferred first. A marker that is never written as markup (not echoed,
  *   escaped with `{{ }}`) is not replaced, and neither is anything that is not this render's
  *   marker (names carry the per-render `deferId`).
- * - When the render fails, the deferred values that will not be read are discarded.
  */
 async function renderDeferred(
   chunks: unknown[],
   deferred: TextDeferEntry[],
   deferId: string,
 ): Promise<string> {
-  let out: string;
+  const out = await render(chunks);
   const contents = new Map<string, string>();
-  try {
-    out = await render(chunks);
-    for (let i = 0; i < deferred.length; i++) {
-      const [name, value] = deferred[i]!;
-      contents.set(name, await render([await value]));
-    }
-  } catch (error) {
-    for (const [, value] of deferred) discard(value, error);
-    throw error;
+  for (let i = 0; i < deferred.length; i++) {
+    const [name, value] = deferred[i]!;
+    contents.set(name, await render([await value]));
   }
   const marker = new RegExp('<\\?marker name="(' + deferId + '\\d+)">', "g");
   const replace = (text: string): string =>

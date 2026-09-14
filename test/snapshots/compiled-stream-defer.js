@@ -38,9 +38,6 @@ async function anonymous(__context__) {
         r;
       try {
         r = t();
-      } catch (e) {
-        for (let t of n) i(t, e);
-        throw e;
       } finally {
         __sink__ = void 0;
       }
@@ -73,12 +70,7 @@ async function anonymous(__context__) {
         if (typeof o == `function` && !n.cancelled) {
           let [e, n] = t(o);
           o = e;
-          try {
-            for (let e of n) await a(e);
-          } catch (t) {
-            for (let r of [...n, e]) i(r, t);
-            throw t;
-          }
+          for (let e of n) await a(e);
         }
         if ((e(o) && !n.cancelled && (o = await o), n.cancelled)) {
           i(o, n.reason);
@@ -376,135 +368,121 @@ async function anonymous(__context__) {
       let s = new TextEncoder(),
         c = new TextDecoder(),
         l = new Set(),
-        f = { cancelled: !1, activeReader: void 0 },
-        p = (n) => {
-          ((f.cancelled = !0), (f.reason = n));
-          let r = f.activeReader;
-          f.activeReader = void 0;
-          for (let e of l) e.cancel(n).catch(() => {});
-          l.clear();
-          for (let t of e) i(t, n);
-          for (let e of t) e.settled?.then((e) => i(`value` in e && e.value, n));
-          return r?.cancel(n);
-        };
+        f = { cancelled: !1, activeReader: void 0 };
       return new ReadableStream({
         async pull(i) {
-          let m,
-            { seen: h, found: g, scan: _ } = d(o),
-            v,
+          let p,
+            { seen: m, found: h, scan: g } = d(o),
+            _,
+            v = !1,
             y = !1,
-            b = !1,
-            x = (e) => {
-              f.cancelled || (t.length > 0 && _(e), i.enqueue(s.encode(e)));
+            b = (e) => {
+              f.cancelled || (t.length > 0 && g(e), i.enqueue(s.encode(e)));
             },
-            S = () => {
-              ((y = !0),
-                (m = u()),
-                b ||
-                  ((b = !0),
-                  x(
+            x = () => {
+              ((v = !0),
+                (p = u()),
+                y ||
+                  ((y = !0),
+                  b(
                     "<script>window.__renduPatch=typeof HTMLTemplateElement<`u`&&`htmlFor`in HTMLTemplateElement.prototype?function(){}:function(){let e=document.currentScript,t=e&&e.previousElementSibling;if(!(!t||t.tagName!==`TEMPLATE`||!t.hasAttribute(`for`)))try{let e=t.getAttribute(`for`);if(!e)return;let n=e=>e.target?`?`+e.target+` `+e.data:e.data,r=document.createTreeWalker(document,192),i=null,a=null;for(let t=r.nextNode();t;t=r.nextNode()){let r=/^\\?(marker|start)\\s+name=[\"']?([^\"'\\s?>]+)/.exec(n(t));if(r&&r[2]===e){i=t,r[1]===`marker`&&(a=t);break}}if(!i)return;if(a!==i)for(let e=i.nextSibling,t=0;e;e=e.nextSibling){if(e.nodeType!==7&&e.nodeType!==8)continue;let r=n(e);if(/^\\?start\\b/.test(r))t++;else if(/^\\?end\\b/.test(r)){if(t===0){a=e;break}t--}}let o=i.parentNode;if(!o)return;if(a!==i)for(let e=i.nextSibling,t;e&&e!==a;e=t)t=e.nextSibling,o.removeChild(e);o.insertBefore(t.content,a),a&&a!==i&&o.removeChild(a),o.removeChild(i)}finally{t.remove()}};<\/script>",
                   )),
-                x(`<template for="` + v + `">`));
+                b(`<template for="` + _ + `">`));
             },
-            C = (e) => {
+            S = (e) => {
               if (f.cancelled) return;
-              if (v === void 0) {
+              if (_ === void 0) {
                 let t = n(e);
-                t ? i.enqueue(t) : x(String(e));
+                t ? i.enqueue(t) : b(String(e));
                 return;
               }
               let t = r(c, e);
               if (!t) return;
-              (y || S(), _(t));
-              let a = m.guard(t);
+              (v || x(), g(t));
+              let a = p.guard(t);
               a && i.enqueue(s.encode(a));
             },
-            w = a(f, C);
-          try {
-            for (let t of e) {
-              if (f.cancelled) return;
-              await w(t);
-            }
-          } catch (e) {
-            throw (p(e), e);
+            C = a(f, S);
+          for (let t of e) {
+            if (f.cancelled) return;
+            await C(t);
           }
-          let T = async (e, t) => {
+          let w = async (e, t) => {
               f.activeReader = e;
               try {
                 for (let n = t; !n.done; n = await e.read()) {
                   if (f.cancelled) return;
-                  C(n.value);
+                  S(n.value);
                 }
               } finally {
                 ((f.activeReader = void 0), l.delete(e), e.releaseLock());
               }
             },
+            T = 0,
             E = 0,
-            D = 0,
-            O = [],
-            k,
-            A = (e) => {
-              let t = E++;
-              (D++,
+            D = [],
+            O,
+            k = (e) => {
+              let t = T++;
+              (E++,
                 e.then((e) => {
-                  if (k) {
-                    let t = k;
-                    ((k = void 0), t(e));
+                  if (O) {
+                    let t = O;
+                    ((O = void 0), t(e));
                     return;
                   }
-                  let n = O.length;
-                  for (; n > 0 && O[(n - 1) >> 1].at > t;)
-                    ((O[n] = O[(n - 1) >> 1]), (n = (n - 1) >> 1));
-                  O[n] = { at: t, settled: e };
+                  let n = D.length;
+                  for (; n > 0 && D[(n - 1) >> 1].at > t;)
+                    ((D[n] = D[(n - 1) >> 1]), (n = (n - 1) >> 1));
+                  D[n] = { at: t, settled: e };
                 }));
             },
-            j = () => {
-              if (O.length === 0) return new Promise((e) => (k = e));
-              let { settled: e } = O[0],
-                t = O.pop(),
+            A = () => {
+              if (D.length === 0) return new Promise((e) => (O = e));
+              let { settled: e } = D[0],
+                t = D.pop(),
                 n = 0;
               for (
                 let e = 1;
-                e < O.length &&
-                (e + 1 < O.length && O[e + 1].at < O[e].at && e++, !(t.at < O[e].at));
+                e < D.length &&
+                (e + 1 < D.length && D[e + 1].at < D[e].at && e++, !(t.at < D[e].at));
                 n = e, e = 2 * n + 1
               )
-                O[n] = O[e];
-              return (n < O.length && (O[n] = t), e);
+                D[n] = D[e];
+              return (n < D.length && (D[n] = t), e);
             },
+            j = 0,
             M = 0,
-            N = 0,
-            P = new Map(),
-            F = () => {
+            N = new Map(),
+            P = () => {
               let e = [];
-              for (let t of g.splice(0)) {
-                let n = P.get(t);
-                n !== void 0 && (P.delete(t), e.push(n));
+              for (let t of h.splice(0)) {
+                let n = N.get(t);
+                n !== void 0 && (N.delete(t), e.push(n));
               }
-              for (let n of e.sort((e, t) => e - t)) A(t[n].settled);
-              for (; M < t.length; M++) {
-                let e = t[M];
-                h.has(e.name) ? A(e.settled) : P.set(e.name, M);
+              for (let n of e.sort((e, t) => e - t)) k(t[n].settled);
+              for (; j < t.length; j++) {
+                let e = t[j];
+                m.has(e.name) ? k(e.settled) : N.set(e.name, j);
               }
-              if (D === 0 && P.size > 0) {
-                for (; !P.has(t[N].name);) N++;
-                (P.delete(t[N].name), A(t[N].settled));
+              if (E === 0 && N.size > 0) {
+                for (; !N.has(t[M].name);) M++;
+                (N.delete(t[M].name), k(t[M].settled));
               }
             };
-          for (F(); D > 0;) {
+          for (P(); E > 0;) {
             if (f.cancelled) return;
             await void 0;
-            let e = await j();
-            if ((D--, f.cancelled)) return;
+            let e = await A();
+            if ((E--, f.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
               let { entry: t, value: n } = e,
                 r = n instanceof Response ? n.body : n;
-              if (r instanceof ReadableStream && D > 0)
+              if (r instanceof ReadableStream && E > 0)
                 try {
                   let e = r.getReader();
                   (l.add(e),
-                    A(
+                    k(
                       e.read().then(
                         (n) => ({ entry: t, reader: e, first: n }),
                         (n) => (l.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
@@ -516,24 +494,33 @@ async function anonymous(__context__) {
                 }
             }
             if (e.failed) {
-              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), F());
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), P());
               continue;
             }
-            v = e.entry.name;
+            _ = e.entry.name;
             let t = !1;
             try {
-              await (e.reader ? T(e.reader, e.first) : w(e.value));
+              await (e.reader ? w(e.reader, e.first) : C(e.value));
             } catch (n) {
               ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
             }
             let n = c.decode();
-            (n && (y || !t) && C(n), !y && !t && S());
-            let r = y ? m.end() + `</template>` : ``;
-            ((v = void 0), (y = !1), r && (x(r), x(`<script>__renduPatch()<\/script>`)), F());
+            (n && (v || !t) && S(n), !v && !t && x());
+            let r = v ? p.end() + `</template>` : ``;
+            ((_ = void 0), (v = !1), r && (b(r), b(`<script>__renduPatch()<\/script>`)), P());
           }
           f.cancelled || i.close();
         },
-        cancel: p,
+        cancel(n) {
+          ((f.cancelled = !0), (f.reason = n));
+          let r = f.activeReader;
+          f.activeReader = void 0;
+          for (let e of l) e.cancel(n).catch(() => {});
+          l.clear();
+          for (let t of e) i(t, n);
+          for (let e of t) e.settled?.then((e) => i(`value` in e && e.value, n));
+          return r?.cancel(n);
+        },
       });
     }
     return f;

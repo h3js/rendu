@@ -26,9 +26,6 @@ async function anonymous(__context__) {
         r;
       try {
         r = t();
-      } catch (e) {
-        for (let t of n) i(t, e);
-        throw e;
       } finally {
         __sink__ = void 0;
       }
@@ -45,47 +42,33 @@ async function anonymous(__context__) {
       let i = String(t);
       return i && e.decode() + i;
     }
-    function i(t, n) {
-      if (e(t)) {
-        t.then(
-          (e) => i(e, n),
-          () => {},
-        );
-        return;
-      }
-      let r = t instanceof Response ? t.body : t;
-      r instanceof ReadableStream && !r.locked && r.cancel(n).catch(() => {});
-    }
-    async function a(n, o) {
-      let s = !o;
-      o ??= new TextDecoder();
-      let c = ``;
-      for (let s of n)
-        try {
-          if (typeof s == `function`) {
-            let [e, n] = t(s);
-            ((s = e), n.length > 0 && (c += await a(n, o)));
-          }
-          if ((e(s) && (s = await s), s instanceof Response && (s = s.body), s == null)) continue;
-          if (s instanceof ReadableStream) {
-            let e = s.getReader();
+    async function i(n, a) {
+      let o = !a;
+      a ??= new TextDecoder();
+      let s = ``;
+      for (let o of n) {
+        if (typeof o == `function`) {
+          let [e, n] = t(o);
+          ((o = e), n.length > 0 && (s += await i(n, a)));
+        }
+        if ((e(o) && (o = await o), o instanceof Response && (o = o.body), o != null)) {
+          if (o instanceof ReadableStream) {
+            let e = o.getReader();
             try {
               for (;;) {
                 let { value: t, done: n } = await e.read();
                 if (n) break;
-                c += r(o, t);
+                s += r(a, t);
               }
             } finally {
               e.releaseLock();
             }
-          } else c += r(o, s);
-        } catch (e) {
-          for (let t of [s, ...n]) i(t, e);
-          throw e;
+          } else s += r(a, o);
         }
-      return s ? c + o.decode() : c;
+      }
+      return o ? s + a.decode() : s;
     }
-    return a;
+    return i;
   })();
   __sink__ = void 0;
   return __render__(__chunks__);
