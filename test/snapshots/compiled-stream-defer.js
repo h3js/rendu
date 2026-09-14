@@ -1,13 +1,14 @@
 async function anonymous(__context__) {
   const __chunks__ = [];
   let __sink__ = __chunks__;
-  const echo = (e) => {
-    if (!__sink__)
-      throw Error(
-        `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
-      );
-    (e instanceof Promise && e.then(void 0, () => {}), __sink__.push(e));
-  };
+  const __echo__ = (e) => {
+      if (!__sink__)
+        throw Error(
+          `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
+        );
+      (e instanceof Promise && e.then(void 0, () => {}), __sink__.push(e));
+    },
+    echo = __echo__;
   const __deferred__ = [];
   let __deferSeq__ = 0;
   const __deferId__ = `d` + Math.random().toString(36).slice(2, 8) + `_`;
@@ -24,9 +25,9 @@ async function anonymous(__context__) {
     );
   }
   with (__context__) {
-    echo("Hello, ");
-    echo(defer(name, "<i>Guest</i>"));
-    echo("!");
+    __echo__("Hello, ");
+    __echo__(defer(name, "<i>Guest</i>"));
+    __echo__("!");
   }
   var concatStreams = (function () {
     function e(e) {

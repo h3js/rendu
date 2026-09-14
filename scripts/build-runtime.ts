@@ -127,7 +127,7 @@ export async function generateRuntime(): Promise<string> {
   const snippets: Record<string, [doc: string, code: string]> = {
     echo: [
       "`echo()` from `prelude.ts` (always inlined)",
-      await prelude("prelude.ts", ["__chunks__", "__sink__", "echo"]),
+      await prelude("prelude.ts", ["__chunks__", "__sink__", "__echo__", "echo"]),
     ],
     htmlspecialchars: [
       "`htmlspecialchars()` from `prelude.ts`",

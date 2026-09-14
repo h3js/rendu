@@ -1,4 +1,10 @@
-import { compileTemplateToString, type CompileTemplateOptions } from "./compiler.ts";
+import {
+  compileTemplateToString,
+  isBindingName,
+  isIdentifier,
+  reservedContextKeys,
+  type CompileTemplateOptions,
+} from "./compiler.ts";
 import { parseTemplate } from "./parser.ts";
 import { referencesIdentifier } from "./runtime.ts";
 import type { RENDER_CONTEXT_KEYS } from "./render.ts";
@@ -91,17 +97,8 @@ function builtinProviders(from: string): Record<BuiltinContextKey, RenderContext
 /** Locals of the generated render function that imports cannot shadow. */
 const reservedLocals = new Set(["request", "context", "$RESPONSE"]);
 
-const identifierRe = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*$/u;
-
-/** Reserved words that cannot be used as binding names in (strict mode) module code. */
-const reservedWords = new Set(
-  "arguments await break case catch class const continue debugger default delete do else enum eval export extends false finally for function if implements import in instanceof interface let new null package private protected public return static super switch this throw true try typeof var void while with yield".split(
-    " ",
-  ),
-);
-
-/** Whether `name` can be used as a binding name in the generated module. */
-const isBindingName = (name: string) => identifierRe.test(name) && !reservedWords.has(name);
+/** Whether `name` is reserved for the generated module names (`__rendu_template__`, import aliases). */
+const isGeneratedName = (name: string) => name.startsWith("__rendu_");
 
 /**
  * Compile a template string into an ES module code string exporting an async
@@ -133,7 +130,7 @@ export function compileTemplateToModule(
     ...compileOpts
   } = opts;
 
-  if (exportName !== "default" && !isBindingName(exportName)) {
+  if (exportName !== "default" && (!isBindingName(exportName) || isGeneratedName(exportName))) {
     throw new TypeError(`Invalid export name: ${JSON.stringify(exportName)}`);
   }
 
@@ -142,7 +139,7 @@ export function compileTemplateToModule(
     ...customProviders,
   };
   for (const key of Object.keys(providers)) {
-    if (!isBindingName(key) || reservedLocals.has(key)) {
+    if (!isBindingName(key) || reservedLocals.has(key) || reservedContextKeys.has(key)) {
       throw new TypeError(`Invalid context provider key: ${JSON.stringify(key)}`);
     }
   }
@@ -180,11 +177,11 @@ export function compileTemplateToModule(
     let value = provider.value;
     if (provider.import) {
       const name = provider.import.name || key;
-      if (!identifierRe.test(name) || reservedLocals.has(name)) {
+      const local = isBindingName(name) ? name : key;
+      if (!isIdentifier(name) || reservedLocals.has(local) || isGeneratedName(local)) {
         throw new TypeError(`Invalid import name for context provider ${JSON.stringify(key)}`);
       }
       const alias = addImport(provider.import.from, name);
-      const local = isBindingName(name) ? name : key;
       if (bindings.has(local) && bindings.get(local) !== alias) {
         throw new TypeError(`Conflicting imports named ${JSON.stringify(local)}`);
       }
@@ -206,12 +203,8 @@ export function compileTemplateToModule(
   if (!providers.htmlspecialchars) {
     ignoredKeys.add("htmlspecialchars");
   }
-  const contextKeys = [...new Set([...usedKeys, ...extraKeys.filter((k) => !ignoredKeys.has(k))])];
-  for (const key of contextKeys) {
-    if (!isBindingName(key)) {
-      throw new TypeError(`Invalid context key: ${JSON.stringify(key)}`);
-    }
-  }
+  // Validated (and deduped) by the compiler.
+  const contextKeys = [...usedKeys, ...extraKeys.filter((k) => !ignoredKeys.has(k))];
 
   const compiled = compileTemplateToString(template, { ...compileOpts, contextKeys });
 

@@ -143,5 +143,7 @@ Snapshots live in `test/snapshots/`.
 `echo()` and `defer()` are **not** context variables — they are declarations in the inlined
 prelude (`src/runtime/`), so they are in scope in every compiled template regardless of
 the render context. Do not add them to `RENDER_CONTEXT_KEYS`: the `contextKeys` path
-compiles to `const { echo, defer } = __context__`, which shadows the prelude declarations
-with `undefined` and fails at render time.
+compiles to `const { defer } = __context__`, which shadows the prelude declaration
+with `undefined` and fails at render time. The compiled output is written with `__echo__`
+(`echo` is an alias), so a context `echo` never breaks it; `echo` is dropped from `contextKeys`
+and `__echo__` / `__context__` are rejected as `contextKeys` and provider keys (reserved names; do not pass them in a `with()` context either).

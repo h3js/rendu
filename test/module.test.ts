@@ -80,6 +80,11 @@ describe("compileTemplateToModule", () => {
     expect(await (await render(request(), { café: "au lait" })).text()).toBe("au lait code");
   });
 
+  it("keeps the runtime echo with an echo context key", async () => {
+    const { render } = await load("a<? echo('b') ?>{{ c }}", { contextKeys: ["echo", "c"] });
+    expect(await (await render(request(), { echo: "nope", c: "c" })).text()).toBe("abc");
+  });
+
   it("supports a default export", async () => {
     const { render } = await load("ok", { exportName: "default" });
     expect(await (await render(request())).text()).toBe("ok");
@@ -114,6 +119,26 @@ describe("compileTemplateToModule", () => {
     expect(() => compileTemplateToModule("", { contextKeys: ["let"] })).toThrow(
       /Invalid context key/,
     );
+    expect(() => compileTemplateToModule("", { contextKeys: ["__echo__"] })).toThrow(
+      /Invalid context key/,
+    );
+    expect(() => compileTemplateToModule("", { providers: { __echo__: { value: "1" } } })).toThrow(
+      /Invalid context provider key/,
+    );
+    // Generated names
+    for (const exportName of ["__rendu_template__", "__rendu_0__"]) {
+      expect(() => compileTemplateToModule("", { exportName })).toThrow(/Invalid export name/);
+    }
+    expect(() =>
+      compileTemplateToModule("<?= a ?>", {
+        providers: { a: { import: { from: "x", name: "__rendu_0__" } } },
+      }),
+    ).toThrow(/Invalid import name/);
+    expect(() =>
+      compileTemplateToModule("<?= __rendu_1__ ?>", {
+        providers: { __rendu_1__: { import: { from: "x", name: "default" } } },
+      }),
+    ).toThrow(/Invalid import name/);
   });
 
   describe("providers", () => {

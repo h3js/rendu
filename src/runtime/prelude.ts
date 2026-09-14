@@ -27,7 +27,7 @@ const __chunks__: unknown[] = [];
 
 let __sink__: unknown[] | undefined = __chunks__;
 
-const echo = (chunk: unknown): void => {
+const __echo__ = (chunk: unknown): void => {
   if (!__sink__) {
     throw new Error(
       "echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.",
@@ -39,7 +39,10 @@ const echo = (chunk: unknown): void => {
   __sink__.push(chunk);
 };
 
-export { __chunks__, __sink__, echo };
+// The compiled template writes its output with `__echo__`, so a context `echo` cannot hijack it.
+const echo = __echo__;
+
+export { __chunks__, __sink__, __echo__, echo };
 
 /**
  * `htmlspecialchars()`, inlined when the body references it.

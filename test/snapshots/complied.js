@@ -1,17 +1,18 @@
 async function anonymous(__context__) {
   const __chunks__ = [];
   let __sink__ = __chunks__;
-  const echo = (e) => {
-    if (!__sink__)
-      throw Error(
-        `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
-      );
-    (e instanceof Promise && e.then(void 0, () => {}), __sink__.push(e));
-  };
+  const __echo__ = (e) => {
+      if (!__sink__)
+        throw Error(
+          `echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`,
+        );
+      (e instanceof Promise && e.then(void 0, () => {}), __sink__.push(e));
+    },
+    echo = __echo__;
   with (__context__) {
-    echo("Hello, ");
-    if (name) echo(await name);
-    else echo("Guest");
+    __echo__("Hello, ");
+    if (name) __echo__(await name);
+    else __echo__("Guest");
   }
   var __render__ = (function () {
     function e(e) {

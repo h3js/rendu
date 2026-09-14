@@ -3,7 +3,7 @@
 
 /** `echo()` from `prelude.ts` (always inlined) */
 export const echo =
-  "const __chunks__=[];let __sink__=__chunks__;const echo=e=>{if(!__sink__)throw Error(`echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`);e instanceof Promise&&e.then(void 0,()=>{}),__sink__.push(e)};";
+  "const __chunks__=[];let __sink__=__chunks__;const __echo__=e=>{if(!__sink__)throw Error(`echo() was called after the template body finished rendering. echo() must be called synchronously; after an await, return the content from the (deferred) value instead.`);e instanceof Promise&&e.then(void 0,()=>{}),__sink__.push(e)},echo=__echo__;";
 
 /** `htmlspecialchars()` from `prelude.ts` */
 export const htmlspecialchars =

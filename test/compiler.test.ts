@@ -59,6 +59,38 @@ describe("compileTemplater", () => {
       }
     });
 
+    it("validates and dedupes contextKeys", async () => {
+      const invalid = [
+        "foo-bar",
+        "let",
+        "__echo__",
+        "__context__",
+        "a}=__context__;globalThis.x=1;const{b",
+      ];
+      for (const key of invalid) {
+        expect(() => compileTemplate("", { contextKeys: [key] })).toThrow(/Invalid context key/);
+      }
+      const fn = compileTemplate("{{ a }} {{ café }}", {
+        stream: false,
+        contextKeys: ["a", "café", "a"],
+      });
+      expect(await fn({ a: 1, café: 2 })).toBe("1 2");
+    });
+
+    it("writes the output with the runtime echo over a context echo", async () => {
+      for (const stream of [false, true]) {
+        const withMode = compileTemplate("a{{ b }}<?= 'c' ?>", { stream });
+        const context = { echo: "nope", b: "b", __chunks__: 1, __sink__: 1, concatStreams: 1 };
+        expect(await new Response(await withMode(context)).text()).toBe("abc");
+
+        const strict = compileTemplate("a{{ b }}<? echo('c') ?>", {
+          stream,
+          contextKeys: ["echo", "b"],
+        });
+        expect(await new Response(await strict({ echo: "nope", b: "b" })).text()).toBe("abc");
+      }
+    });
+
     it("separates statements between tags", async () => {
       const cases = {
         "a<? // note ?>": "a",

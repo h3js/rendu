@@ -5,6 +5,13 @@ export type CompileTemplateOptions = {
   stream?: boolean;
   filename?: string;
   preserveLines?: boolean;
+  /**
+   * Context keys to bind with (strict mode compatible) destructuring instead of `with()`.
+   *
+   * Keys must be valid binding names (`__echo__` and `__context__` are reserved). `echo` is
+   * ignored: the template always uses the runtime `echo()` (with `with()`, a context `echo` only
+   * shadows it in template code, like any other name; the compiled output is not affected).
+   */
   contextKeys?: string[];
   /**
    * Emit a small client-side fallback for `defer()` patches so they also apply in
@@ -99,7 +106,7 @@ export function compileTemplateToString(
             const isLast = i === lines.length - 1;
             const chunk = isLast ? lines[i] : lines[i] + "\n";
             if (chunk) {
-              code += `echo(${JSON.stringify(chunk)});`;
+              code += `__echo__(${JSON.stringify(chunk)});`;
             }
             if (!isLast) {
               if (borrowed > 0) {
@@ -111,7 +118,7 @@ export function compileTemplateToString(
           }
           parts.push(code);
         } else {
-          parts.push(`echo(${JSON.stringify(token.contents)});`);
+          parts.push(`__echo__(${JSON.stringify(token.contents)});`);
         }
         break;
       }
@@ -124,11 +131,11 @@ export function compileTemplateToString(
           if (needsNewline) {
             borrowed++;
           }
-          parts.push(`echo((${token.contents}${needsNewline ? "\n" : ""}));`);
+          parts.push(`__echo__((${token.contents}${needsNewline ? "\n" : ""}));`);
         } else {
           // Wrapped in parens + newlines so trailing line comments and
           // multi-line expressions do not break the generated code.
-          parts.push(`echo((\n${token.contents}\n));`);
+          parts.push(`__echo__((\n${token.contents}\n));`);
         }
         break;
       }
@@ -148,19 +155,19 @@ export function compileTemplateToString(
 
   let body: string = parts.join(preserveLines ? "" : "\n");
 
+  const contextKeys = opts.contextKeys && validateContextKeys(opts.contextKeys);
+
   // Note: the body is always wrapped in a block so context bindings shadow
   // (instead of colliding with) the runtime prelude declarations. With `contextKeys`, the
   // body gets its own nested block so template declarations shadow the context bindings.
-  body = opts.contextKeys
-    ? `{const {${opts.contextKeys.join(",")}}=__context__;{${body}}}`
+  body = contextKeys
+    ? `{const {${contextKeys.join(",")}}=__context__;{${body}}}`
     : `with(__context__){${body}}`;
 
   // Runtime helpers are only inlined when the body references them. Helpers that are
   // explicitly provided by the context (`contextKeys`) are never inlined.
   body =
-    opts.stream === false
-      ? runtimeText(body, opts.contextKeys)
-      : runtimeStream(body, opts.contextKeys, opts);
+    opts.stream === false ? runtimeText(body, contextKeys) : runtimeStream(body, contextKeys, opts);
 
   return asyncWrapper === false ? body : `(async (__context__) => {${body}})`;
 }
@@ -168,4 +175,36 @@ export function compileTemplateToString(
 /** Whether the code already ends on a fresh line (nothing but whitespace after the last newline). */
 function endsOnFreshLine(code: string): boolean {
   return /\n[^\S\n]*$/.test(code);
+}
+
+const identifierRe = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*$/u;
+
+/** Whether `name` is an identifier (reserved words included). */
+export const isIdentifier = (name: string): boolean => identifierRe.test(name);
+
+/** Reserved words that cannot be used as binding names in (strict mode) module code. */
+const reservedWords = new Set(
+  "arguments await break case catch class const continue debugger default delete do else enum eval export extends false finally for function if implements import in instanceof interface let new null package private protected public return static super switch this throw true try typeof var void while with yield".split(
+    " ",
+  ),
+);
+
+/** Whether `name` can be used as a binding name (in strict mode code too). */
+export const isBindingName = (name: string): boolean =>
+  identifierRe.test(name) && !reservedWords.has(name);
+
+/** Names of the compiled template that context keys cannot bind (see `compileTemplateToString`). */
+export const reservedContextKeys: ReadonlySet<string> = new Set(["__echo__", "__context__"]);
+
+/**
+ * Validate and dedupe `contextKeys` (they are emitted as a destructuring pattern). `echo` is
+ * dropped: the template always uses the runtime `echo()`.
+ */
+function validateContextKeys(keys: string[]): string[] {
+  for (const key of keys) {
+    if (!isBindingName(key) || reservedContextKeys.has(key)) {
+      throw new TypeError(`Invalid context key: ${JSON.stringify(key)}`);
+    }
+  }
+  return [...new Set(keys)].filter((key) => key !== "echo");
 }
