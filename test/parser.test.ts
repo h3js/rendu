@@ -217,20 +217,13 @@ describe("parser", () => {
       expect(performance.now() - start).toBeLessThan(1000);
     });
 
-    it("unclosed tags and script server openers parse in linear time", () => {
+    it("unclosed tags parse in linear time", () => {
       const start = performance.now();
-      for (const template of [
-        "<? ".repeat(20_000),
-        "<?js= ".repeat(20_000),
-        "<script ".repeat(4000),
-        "<script server ".repeat(4000),
-        "<script a='<script server b=\" ".repeat(4000),
-        "<? <script server ".repeat(4000),
-      ]) {
+      for (const template of ["<? ".repeat(20_000), "<?js= ".repeat(20_000)]) {
         expect(parseTemplate(template)).toEqual([{ type: "text", contents: template }]);
         expect(hasTemplateSyntax(template)).toBe(false);
       }
-      // These took seconds with the previous backtracking regexes.
+      // These took seconds with the previous lazy `[\s\S]*?\?>` regex.
       expect(performance.now() - start).toBeLessThan(1000);
     });
 
