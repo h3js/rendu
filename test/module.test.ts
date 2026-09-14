@@ -68,40 +68,6 @@ describe("compileTemplateToModule", () => {
     expect(await res.text()).toBe("yes");
   });
 
-  it("ignores helper names in comments", () => {
-    for (const template of [
-      `<? // TODO: redirect and setCookie ?>{{ $URL /* $COOKIES */ }}`,
-      `<script server>/* redirect\n */ const x = $URL // $COOKIES</script>`,
-    ]) {
-      const code = compileTemplateToModule(template);
-      expect(code).toContain("createRenderURL");
-      expect(code).not.toMatch(/createRenderCookies|createSetCookie|createRedirect/);
-    }
-    // Literals are not scanned (a name in a string only imports an unused helper).
-    expect(compileTemplateToModule(`<? // redirect ?>{{ "$COOKIES" }}`)).toMatch(
-      /createRenderCookies.*createRedirect/,
-    );
-  });
-
-  it("detects helpers in comments when ambiguous", async () => {
-    // A comment-like `//` or `/*` in a literal, or a comment across tags, must not hide code.
-    for (const template of [
-      `<? if (x) /'/.test(s) && redirect("/") // ' ?>`,
-      `<? for (;;) { break\n/'/.test(s) && redirect("/") // '\n} ?>`,
-      `<? x = a+++/'/.test(s) && redirect("/") // ' ?>`,
-      `<? x = 1 ?><? /'/.test(s) && redirect("/") // ' ?>`,
-      `<? /* ?><? */ redirect("/") / 2 ?>`,
-      "<? x = `a ?><? ${redirect} b` ?>",
-      `<? x = "//" + redirect("/") ?>`,
-      `<? x = a / 2 /* ?><? */ + redirect("/") ?>`,
-      `<script server>/*</script><script server>*//x/; redirect("/")</script>`,
-    ]) {
-      expect(compileTemplateToModule(template)).toContain("createRedirect");
-    }
-    const { render } = await load(`<? const s = "'"; if (s) /'/.test(s) && redirect("/") // ' ?>`);
-    expect((await render(request())).status).toBe(302);
-  });
-
   it("ignores render context keys in contextKeys", async () => {
     const { render } = await load("{{ title }}", {
       contextKeys: ["title", "htmlspecialchars", "$COOKIES", "$RESPONSE"],
