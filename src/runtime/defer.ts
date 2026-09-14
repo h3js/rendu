@@ -122,35 +122,18 @@ export { __deferred__, __deferSeq__, __deferId__, defer };
  *   comment or `<script>` it is left untouched, and a balanced nested `<template>` passes
  *   through (`pDepth`). `<plaintext` is escaped too: nothing can end that element.
  * - A `<`-led fragment at the end of a chunk that could still become one of those two
- *   (`<`, `</te`, `<plain`, or a `<![` in `<svg>` / `<math>`, see below) is held back in
- *   `patchTail` and re-scanned with the next chunk.
+ *   (`<`, `</te`, `<plain`) is held back in `patchTail` and re-scanned with the next chunk.
  * - `end()` returns the tokenizer to the data state at depth 0 whatever the content
  *   left open: a dangling tail is escaped, then the minimal closer for the current state is
  *   fed through `guard()` itself until nothing is open (`">` closes an attribute and its tag,
  *   `>` a tag, `-->` a comment, `</script>` a raw text element, `</template>` a nested
  *   template), since closing a tag can open another state (`<script` → `>` → `</script>`).
- * - Some elements are raw text in one browser and markup in another: `<noscript>` (raw text only
- *   with scripting enabled), and `<style>`, `<title>`, `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`
- *   inside a `<select>` (ignored there, so not raw text, by parsers that predate customizable
- *   `<select>`). Their content is tokenized as markup, and while one is open (`pShadow`) every `<`
- *   inside a tag, an attribute value or a comment is escaped (not one in text, like `a <3`; in
- *   raw text: only the end tags of the open shadow elements), and so are `<template>` tags:
- *   whichever way it is read, the element then ends at the same end tag and leaves the template
- *   depth alone. `end()` closes it with its end tag, a stray end tag (ignored) where it was
- *   markup. An open `<select>` is tracked by template depth (`pSelect`) until its end tag, which
- *   can overestimate but never miss it.
- * - Tree construction matters elsewhere too, and is overestimated the same way:
- *   - Template content whose first start tag is `<col>` is a column group, which ignores every
- *     tag but `<col>` and `<template>` (`pModes`, per template depth), raw text elements
- *     included.
- *   - Inside `<svg>` / `<math>` (`pSvg`, `pMath`: counted by their start and end tags, and reset
- *     by the end of the template holding them), `<template>` is a foreign element that
- *     `</svg>` closes implicitly, so it is escaped; raw text elements are markup, so they are
- *     shadows; and `<![CDATA[` is a CDATA section that ends at `]]>` rather than at the first
- *     `>`, so it is escaped unless both are the same `>` (held back until that `>`, up to a
- *     limit). Once an integration point (`pPoints`: `<foreignObject>`, `<mi>`, …) holds any
- *     element, HTML may be open inside them, which makes their end tags unreliable: the counts
- *     then stay up until the template ends.
+ *   An unclosed `<noscript>` (raw text in a browser with scripting, markup without) gets a
+ *   `</noscript>` before any `</template>`: a stray end tag is ignored either way.
+ * - Tree construction is not modelled: `<svg>` / `<math>` content (raw text elements, CDATA),
+ *   `<noscript>` or `<select>` content that parsers read either as markup or as raw text, and
+ *   `<col>`-first template content. Truncated or malformed markup inside those can end a patch
+ *   early or leave it open.
  */
 
 type TokenizerState =
@@ -196,36 +179,6 @@ const rawTextElements = [
   "noframes",
 ];
 
-/** Elements whose content a browser may or may not read as raw text (see `createPatchGuard()`). */
-const shadowElements = ["noscript", "style", "title", "xmp", "iframe", "noembed", "noframes"];
-
-/** Start tags that template content processes without picking its content model. */
-const templateHeadElements = [
-  "base",
-  "basefont",
-  "bgsound",
-  "link",
-  "meta",
-  "noframes",
-  "script",
-  "style",
-  "template",
-  "title",
-];
-
-/** `<svg>` / `<math>` children that can hold HTML. */
-const integrationPoints = [
-  "foreignobject",
-  "desc",
-  "title",
-  "mi",
-  "mo",
-  "mn",
-  "ms",
-  "mtext",
-  "annotation-xml",
-];
-
 function createPatchGuard(): PatchGuard {
   let patchTail = "";
   let ps: TokenizerState = "data";
@@ -233,21 +186,9 @@ function createPatchGuard(): PatchGuard {
   let pAt = 0;
   /** Nested `<template>` depth. */
   let pDepth = 0;
-  /** Open elements from `shadowElements` that are tokenized as markup but may be raw text. */
-  let pShadow: string[] = [];
-  /** Template depth of the outermost open `<select>`, or -1. */
-  let pSelect = -1;
-  /** Per template depth: 0 no content model picked yet, 1 picked, 2 column group (`<col>` first). */
-  const pModes = [0];
-  /**
-   * `<svg>` and `<math>` elements that may be open (`Infinity` once HTML may be nested inside
-   * them: their end tags can then be ignored).
-   */
-  let pSvg = 0;
-  let pMath = 0;
-  /** The `integrationPoints` open inside them, while nothing else was opened inside those. */
-  let pPoints: string[] = [];
-  /** The current tag name (lowercase, capped past the longest name that matters). */
+  /** Open `<noscript>` elements. */
+  let pNoscript = 0;
+  /** The current tag name (lowercase, capped: only short names matter). */
   let pName = "";
   /** Whether the current tag is an end tag. */
   let pEnd = false;
@@ -259,63 +200,13 @@ function createPatchGuard(): PatchGuard {
   /** The end tag name after a `</` in raw text. */
   let pBuf = "";
 
-  /** Whether the current tag (or a tag starting with its name so far, if `partial`) is escaped. */
-  const escapedTag = (partial: boolean) => {
-    const is = (name: string) => (partial ? name.startsWith(pName) : name === pName);
-    return pShadow.length > 0
-      ? is("template") || (!pEnd && is("plaintext"))
-      : pEnd
-        ? pDepth === 0 && is("template")
-        : is("plaintext") || (pSvg + pMath > 0 && is("template"));
-  };
-
   const tagEnd = () => {
     ps = "data";
-    const mode = pModes[pDepth];
-    const foreign = pSvg + pMath > 0;
-    if (!pEnd && !mode && !templateHeadElements.includes(pName)) {
-      pModes[pDepth] = pName === "col" ? 2 : 1;
-    }
     if (pName === "template") {
-      if (pEnd) {
-        pDepth--;
-        pSvg = pMath = 0;
-        pPoints = [];
-      } else {
-        pModes[++pDepth] = 0;
-      }
-      if (pDepth < pSelect) pSelect = -1;
-      return;
-    }
-    // Column group template content ignores every other tag.
-    if (mode === 2) return;
-    if (foreign) {
-      if (pEnd) {
-        if (pPoints[pPoints.length - 1] === pName) pPoints.pop();
-      } else if (pPoints.length > 0) {
-        pSvg = pMath = Infinity;
-      } else if (integrationPoints.includes(pName)) {
-        pPoints.push(pName);
-      }
-    }
-    if (pName === "select") {
-      if (!pEnd && pSelect < 0) pSelect = pDepth;
-      else if (pEnd && pDepth === pSelect) pSelect = -1;
-    } else if (pEnd) {
-      if (pShadow.includes(pName)) pShadow = pShadow.filter((name) => name !== pName);
-      if (pName === "svg" && pSvg > 0) pSvg--;
-      if (pName === "math" && pMath > 0) pMath--;
-    } else if (pName === "svg") {
-      pSvg++;
-    } else if (pName === "math") {
-      pMath++;
-    } else if (
-      pName === "noscript" ||
-      (pSelect >= 0 && shadowElements.includes(pName)) ||
-      (foreign && rawTextElements.includes(pName))
-    ) {
-      if (!pShadow.includes(pName)) pShadow.push(pName);
-    } else if (rawTextElements.includes(pName)) {
+      pDepth += pEnd ? -1 : 1;
+    } else if (pName === "noscript") {
+      pNoscript = Math.max(0, pNoscript + (pEnd ? -1 : 1));
+    } else if (!pEnd && rawTextElements.includes(pName)) {
       ps = "raw";
       pRaw = pName;
       pSub = 0;
@@ -328,26 +219,11 @@ function createPatchGuard(): PatchGuard {
     patchTail = "";
     let out = "";
     let from = 0;
-    const escape = (at: number) => {
-      if (from <= at) {
-        out += text.slice(from, at) + "&lt;";
-        from = at + 1;
-      }
-    };
-    /** Skip from `at` to `to` (-1: the end of the text), escaping every `<` in between in a shadow. */
-    const skip = (at: number, to: number) => {
-      if (to < 0) to = text.length;
-      for (; pShadow.length > 0 && at < to; at++) if (text.charCodeAt(at) === 60) escape(at);
-      return to;
-    };
     for (let i = 0; i < text.length; i++) {
       const ch = text[i]!;
       const code = text.charCodeAt(i);
       const ws = code === 32 || code === 9 || code === 10 || code === 12 || code === 13;
       const alpha = (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-      if (code === 60 && pShadow.length > 0 && ps !== "data" && ps !== "lt" && ps[0] !== "r") {
-        escape(i);
-      }
       switch (ps) {
         case "data":
           i = text.indexOf("<", i);
@@ -383,9 +259,10 @@ function createPatchGuard(): PatchGuard {
           } else if (ch === ">") {
             tagEnd();
           } else {
-            if (pName.length < 15) pName += alpha ? ch.toLowerCase() : ch;
-            if (escapedTag(false)) {
-              escape(pAt);
+            if (pName.length < 10) pName += alpha ? ch.toLowerCase() : ch;
+            if (pEnd ? pDepth === 0 && pName === "template" : pName === "plaintext") {
+              out += text.slice(from, pAt) + "&lt;";
+              from = pAt + 1;
               ps = "data";
             }
           }
@@ -407,8 +284,9 @@ function createPatchGuard(): PatchGuard {
           break;
         case "dq":
         case "sq":
-          i = skip(i, text.indexOf(ps === "dq" ? '"' : "'", i));
-          if (i < text.length) ps = "attr";
+          i = text.indexOf(ps === "dq" ? '"' : "'", i);
+          if (i < 0) i = text.length;
+          else ps = "attr";
           break;
         case "uq":
           if (ch === ">") tagEnd();
@@ -416,33 +294,16 @@ function createPatchGuard(): PatchGuard {
           break;
         case "md":
         case "mdd":
-          if (ch === "-") {
-            ps = ps === "md" ? "mdd" : "cs";
-          } else if (ch === "[" && ps === "md" && pSvg + pMath > 0) {
-            // A CDATA section in foreign content, a bogus comment elsewhere: kept only where
-            // both end at the same `>` (held back until that `>` is there, up to a limit).
-            const close = text.indexOf(">", i);
-            const far = (close < 0 ? text.length : close) - pAt > 16_384;
-            if (!text.startsWith("[CDATA[", i) && (close >= 0 || text.length - i >= 7)) {
-              ps = "bogus";
-              i--;
-            } else if (close < 0 && !far) {
-              i = text.length;
-            } else if (!far && close >= i + 9 && text.startsWith("]]", close - 2)) {
-              i = skip(i, close);
-              ps = "data";
-            } else {
-              escape(pAt);
-              ps = "data";
-            }
-          } else {
+          if (ch === "-") ps = ps === "md" ? "mdd" : "cs";
+          else {
             ps = "bogus";
             i--;
           }
           break;
         case "bogus":
-          i = skip(i, text.indexOf(">", i));
-          if (i < text.length) ps = "data";
+          i = text.indexOf(">", i);
+          if (i < 0) i = text.length;
+          else ps = "data";
           break;
         case "cs":
         case "csd":
@@ -454,8 +315,9 @@ function createPatchGuard(): PatchGuard {
           }
           break;
         case "c":
-          i = skip(i, text.indexOf("-", i));
-          if (i < text.length) ps = "ced";
+          i = text.indexOf("-", i);
+          if (i < 0) i = text.length;
+          else ps = "ced";
           break;
         case "ced":
           if (ch === "-") ps = "ce";
@@ -477,15 +339,10 @@ function createPatchGuard(): PatchGuard {
         case "raw":
           if (pSub === 0) {
             i = text.indexOf("<", i);
-            if (i < 0) {
-              i = text.length;
-            } else {
-              ps = "rlt";
-              pAt = i;
-            }
+            if (i < 0) i = text.length;
+            else ps = "rlt";
           } else if (ch === "<") {
             ps = "rlt";
-            pAt = i;
             pDash = 0;
           } else if (ch === "-") {
             pDash++;
@@ -520,7 +377,6 @@ function createPatchGuard(): PatchGuard {
         case "rdname":
           if (alpha) {
             if (pBuf.length < 10) pBuf += ch.toLowerCase();
-            if (pBuf !== pRaw && pShadow.includes(pBuf)) escape(pAt);
           } else if (!ws && ch !== "/" && ch !== ">") {
             ps = "raw";
             i--;
@@ -540,15 +396,11 @@ function createPatchGuard(): PatchGuard {
       }
     }
     if (
-      ((ps === "lt" || ps === "endlt" || ps === "name") && escapedTag(true)) ||
-      (ps === "md" && pSvg + pMath > 0) ||
-      (pShadow.length > 0 &&
-        from <= pAt &&
-        (ps === "rlt" ||
-          ((ps === "rname" || ps === "rdname") && pShadow.some((name) => name.startsWith(pBuf)))))
+      (ps === "lt" || ps === "endlt" || ps === "name") &&
+      (pEnd ? pDepth === 0 && "template".startsWith(pName) : "plaintext".startsWith(pName))
     ) {
       patchTail = text.slice(pAt);
-      ps = ps[0] === "r" ? "raw" : "data";
+      ps = "data";
       return out + text.slice(from, pAt);
     }
     return out + text.slice(from);
@@ -557,7 +409,7 @@ function createPatchGuard(): PatchGuard {
   const end = (): string => {
     let out = patchTail && "&lt;" + patchTail.slice(1);
     patchTail = "";
-    while (ps !== "data" || pDepth > 0 || pShadow.length > 0) {
+    while (ps !== "data" || pDepth > 0 || pNoscript > 0) {
       out += guard(
         ps === "dq"
           ? '">'
@@ -571,8 +423,8 @@ function createPatchGuard(): PatchGuard {
                   : "</" + pRaw + ">"
                 : ps !== "data"
                   ? ">"
-                  : pShadow.length > 0
-                    ? "</" + pShadow[0] + ">"
+                  : pNoscript > 0
+                    ? "</noscript>"
                     : "</template>",
       );
     }
@@ -673,8 +525,7 @@ export default function concatStreams(
   const state: StreamState = { cancelled: false, activeReader: undefined };
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      /** The open patch's framing: a fresh tokenizer for every patch (see `openPatch()`). */
-      let patch!: PatchGuard;
+      const { guard, end: patchEnd } = createPatchGuard();
       const { seen, found, scan } = createMarkerScan(deferId);
 
       /** The entry being flushed, `undefined` outside a patch. */
@@ -691,7 +542,6 @@ export default function concatStreams(
 
       const openPatch = () => {
         patchOpen = true;
-        patch = createPatchGuard();
         if (__POLYFILL__ && !helperSent) {
           helperSent = true;
           emit(__PATCH_SCRIPT__);
@@ -725,7 +575,7 @@ export default function concatStreams(
         if (!text) return;
         if (!patchOpen) openPatch();
         scan(text);
-        const guarded = patch.guard(text);
+        const guarded = guard(text);
         if (guarded) controller.enqueue(encoder.encode(guarded));
       };
 
@@ -752,7 +602,7 @@ export default function concatStreams(
        *   any content emits no patch (see `enqueue`), so its placeholder stays, whether it
        *   failed racing or while it was written (as the last pending entry, a stream is written
        *   without racing). A value that fails mid-stream has already been partly written into
-       *   its open patch: that part stays, and `patch.end()` closes whatever it left open so later
+       *   its open patch: that part stays, and `patchEnd()` closes whatever it left open so later
        *   patches are unaffected.
        * - An entry races only once its marker has been `seen`; until then it waits in `parked`.
        *   That is what makes nested `defer()` work: a marker inside another deferred value (a
@@ -883,7 +733,7 @@ export default function concatStreams(
         const rest = decoder.decode();
         if (rest && (patchOpen || !failed)) enqueue(rest);
         if (!patchOpen && !failed) openPatch();
-        const end = patchOpen ? patch.end() + "</template>" : "";
+        const end = patchOpen ? patchEnd() + "</template>" : "";
         patchName = undefined;
         patchOpen = false;
         if (end) {

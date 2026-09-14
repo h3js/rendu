@@ -96,233 +96,159 @@ async function anonymous(__context__) {
       };
       return a;
     }
-    let o = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
-      s = [`noscript`, `style`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
-      c = [
-        `base`,
-        `basefont`,
-        `bgsound`,
-        `link`,
-        `meta`,
-        `noframes`,
-        `script`,
-        `style`,
-        `template`,
-        `title`,
-      ],
-      l = [`foreignobject`, `desc`, `title`, `mi`, `mo`, `mn`, `ms`, `mtext`, `annotation-xml`];
-    function u() {
+    let o = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
+    function s() {
       let e = ``,
         t = `data`,
         n = 0,
         r = 0,
-        i = [],
-        a = -1,
-        u = [0],
-        d = 0,
-        f = 0,
-        p = [],
-        m = ``,
-        h = !1,
-        g = ``,
-        _ = 0,
-        v = 0,
-        y = ``,
-        b = (e) => {
-          let t = (t) => (e ? t.startsWith(m) : t === m);
-          return i.length > 0
-            ? t(`template`) || (!h && t(`plaintext`))
-            : h
-              ? r === 0 && t(`template`)
-              : t(`plaintext`) || (d + f > 0 && t(`template`));
+        i = 0,
+        a = ``,
+        s = !1,
+        c = ``,
+        l = 0,
+        u = 0,
+        d = ``,
+        f = () => {
+          ((t = `data`),
+            a === `template`
+              ? (r += s ? -1 : 1)
+              : a === `noscript`
+                ? (i = Math.max(0, i + (s ? -1 : 1)))
+                : !s && o.includes(a) && ((t = `raw`), (c = a), (l = 0), (u = 0)));
         },
-        x = () => {
-          t = `data`;
-          let e = u[r],
-            n = d + f > 0;
-          if ((!h && !e && !c.includes(m) && (u[r] = m === `col` ? 2 : 1), m === `template`)) {
-            (h ? (r--, (d = f = 0), (p = [])) : (u[++r] = 0), r < a && (a = -1));
-            return;
-          }
-          e !== 2 &&
-            (n &&
-              (h
-                ? p[p.length - 1] === m && p.pop()
-                : p.length > 0
-                  ? (d = f = 1 / 0)
-                  : l.includes(m) && p.push(m)),
-            m === `select`
-              ? !h && a < 0
-                ? (a = r)
-                : h && r === a && (a = -1)
-              : h
-                ? (i.includes(m) && (i = i.filter((e) => e !== m)),
-                  m === `svg` && d > 0 && d--,
-                  m === `math` && f > 0 && f--)
-                : m === `svg`
-                  ? d++
-                  : m === `math`
-                    ? f++
-                    : m === `noscript` || (a >= 0 && s.includes(m)) || (n && o.includes(m))
-                      ? i.includes(m) || i.push(m)
-                      : o.includes(m) && ((t = `raw`), (g = m), (_ = 0), (v = 0)));
-        },
-        S = (r) => {
-          ((r = e + r), (e = ``));
-          let a = ``,
-            o = 0,
-            s = (e) => {
-              o <= e && ((a += r.slice(o, e) + `&lt;`), (o = e + 1));
-            },
-            c = (e, t) => {
-              for (t < 0 && (t = r.length); i.length > 0 && e < t; e++)
-                r.charCodeAt(e) === 60 && s(e);
-              return t;
-            };
-          for (let e = 0; e < r.length; e++) {
-            let a = r[e],
-              o = r.charCodeAt(e),
-              l = o === 32 || o === 9 || o === 10 || o === 12 || o === 13,
-              u = (o >= 65 && o <= 90) || (o >= 97 && o <= 122);
-            switch (
-              (o === 60 && i.length > 0 && t !== `data` && t !== `lt` && t[0] !== `r` && s(e), t)
-            ) {
+        p = (i) => {
+          ((i = e + i), (e = ``));
+          let o = ``,
+            p = 0;
+          for (let e = 0; e < i.length; e++) {
+            let m = i[e],
+              h = i.charCodeAt(e),
+              g = h === 32 || h === 9 || h === 10 || h === 12 || h === 13,
+              _ = (h >= 65 && h <= 90) || (h >= 97 && h <= 122);
+            switch (t) {
               case `data`:
-                ((e = r.indexOf(`<`, e)),
-                  e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (m = ``), (h = !1)));
+                ((e = i.indexOf(`<`, e)),
+                  e < 0 ? (e = i.length) : ((t = `lt`), (n = e), (a = ``), (s = !1)));
                 break;
               case `lt`:
-                (a === `/`
+                (m === `/`
                   ? (t = `endlt`)
-                  : a === `!`
+                  : m === `!`
                     ? (t = `md`)
-                    : a === `?`
+                    : m === `?`
                       ? (t = `bogus`)
-                      : ((t = u ? `name` : `data`), e--),
-                  (h = t === `endlt`));
+                      : ((t = _ ? `name` : `data`), e--),
+                  (s = t === `endlt`));
                 break;
               case `endlt`:
-                a === `>` ? (t = `data`) : ((t = u ? `name` : `bogus`), e--);
+                m === `>` ? (t = `data`) : ((t = _ ? `name` : `bogus`), e--);
                 break;
               case `name`:
-                l || a === `/`
+                g || m === `/`
                   ? (t = `attr`)
-                  : a === `>`
-                    ? x()
-                    : (m.length < 15 && (m += u ? a.toLowerCase() : a),
-                      b(!1) && (s(n), (t = `data`)));
+                  : m === `>`
+                    ? f()
+                    : (a.length < 10 && (a += _ ? m.toLowerCase() : m),
+                      (s ? r === 0 && a === `template` : a === `plaintext`) &&
+                        ((o += i.slice(p, n) + `&lt;`), (p = n + 1), (t = `data`)));
                 break;
               case `attr`:
-                a === `>` ? x() : !l && a !== `/` && (t = `aname`);
+                m === `>` ? f() : !g && m !== `/` && (t = `aname`);
                 break;
               case `aname`:
-                a === `>` ? x() : a === `/` ? (t = `attr`) : a === `=` && (t = `aval`);
+                m === `>` ? f() : m === `/` ? (t = `attr`) : m === `=` && (t = `aval`);
                 break;
               case `aval`:
-                a === `>` ? x() : a === `"` ? (t = `dq`) : a === `'` ? (t = `sq`) : l || (t = `uq`);
+                m === `>` ? f() : m === `"` ? (t = `dq`) : m === `'` ? (t = `sq`) : g || (t = `uq`);
                 break;
               case `dq`:
               case `sq`:
-                ((e = c(e, r.indexOf(t === `dq` ? `"` : `'`, e))), e < r.length && (t = `attr`));
+                ((e = i.indexOf(t === `dq` ? `"` : `'`, e)), e < 0 ? (e = i.length) : (t = `attr`));
                 break;
               case `uq`:
-                a === `>` ? x() : l && (t = `attr`);
+                m === `>` ? f() : g && (t = `attr`);
                 break;
               case `md`:
               case `mdd`:
-                if (a === `-`) t = t === `md` ? `mdd` : `cs`;
-                else if (a === `[` && t === `md` && d + f > 0) {
-                  let i = r.indexOf(`>`, e),
-                    a = (i < 0 ? r.length : i) - n > 16384;
-                  !r.startsWith(`[CDATA[`, e) && (i >= 0 || r.length - e >= 7)
-                    ? ((t = `bogus`), e--)
-                    : i < 0 && !a
-                      ? (e = r.length)
-                      : !a && i >= e + 9 && r.startsWith(`]]`, i - 2)
-                        ? ((e = c(e, i)), (t = `data`))
-                        : (s(n), (t = `data`));
-                } else ((t = `bogus`), e--);
+                m === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
                 break;
               case `bogus`:
-                ((e = c(e, r.indexOf(`>`, e))), e < r.length && (t = `data`));
+                ((e = i.indexOf(`>`, e)), e < 0 ? (e = i.length) : (t = `data`));
                 break;
               case `cs`:
               case `csd`:
-                a === `>`
+                m === `>`
                   ? (t = `data`)
-                  : a === `-`
+                  : m === `-`
                     ? (t = t === `cs` ? `csd` : `ce`)
                     : ((t = `c`), e--);
                 break;
               case `c`:
-                ((e = c(e, r.indexOf(`-`, e))), e < r.length && (t = `ced`));
+                ((e = i.indexOf(`-`, e)), e < 0 ? (e = i.length) : (t = `ced`));
                 break;
               case `ced`:
-                a === `-` ? (t = `ce`) : ((t = `c`), e--);
+                m === `-` ? (t = `ce`) : ((t = `c`), e--);
                 break;
               case `ce`:
               case `ceb`:
-                a === `>`
+                m === `>`
                   ? (t = `data`)
-                  : a === `-`
+                  : m === `-`
                     ? (t = t === `ce` ? `ce` : `ced`)
-                    : a === `!` && t === `ce`
+                    : m === `!` && t === `ce`
                       ? (t = `ceb`)
                       : ((t = `c`), e--);
                 break;
               case `raw`:
-                _ === 0
-                  ? ((e = r.indexOf(`<`, e)), e < 0 ? (e = r.length) : ((t = `rlt`), (n = e)))
-                  : a === `<`
-                    ? ((t = `rlt`), (n = e), (v = 0))
-                    : a === `-`
-                      ? v++
-                      : (a === `>` && v > 1 && (_ = 0), (v = 0));
+                l === 0
+                  ? ((e = i.indexOf(`<`, e)), e < 0 ? (e = i.length) : (t = `rlt`))
+                  : m === `<`
+                    ? ((t = `rlt`), (u = 0))
+                    : m === `-`
+                      ? u++
+                      : (m === `>` && u > 1 && (l = 0), (u = 0));
                 break;
               case `rlt`:
-                ((y = ``),
-                  a === `/`
-                    ? (t = _ === 2 ? `rdname` : `rname`)
-                    : a === `!` && g === `script` && _ === 0
+                ((d = ``),
+                  m === `/`
+                    ? (t = l === 2 ? `rdname` : `rname`)
+                    : m === `!` && c === `script` && l === 0
                       ? (t = `rbang`)
-                      : ((t = u && _ === 1 ? `rdname` : `raw`), e--));
+                      : ((t = _ && l === 1 ? `rdname` : `raw`), e--));
                 break;
               case `rbang`:
               case `rbangd`:
-                a === `-`
+                m === `-`
                   ? t === `rbang`
                     ? (t = `rbangd`)
-                    : ((t = `raw`), (_ = 1), (v = 2))
+                    : ((t = `raw`), (l = 1), (u = 2))
                   : ((t = `raw`), e--);
                 break;
               case `rname`:
               case `rdname`:
-                u
-                  ? (y.length < 10 && (y += a.toLowerCase()), y !== g && i.includes(y) && s(n))
-                  : !l && a !== `/` && a !== `>`
+                _
+                  ? d.length < 10 && (d += m.toLowerCase())
+                  : !g && m !== `/` && m !== `>`
                     ? ((t = `raw`), e--)
                     : t === `rdname`
-                      ? ((t = `raw`), y === `script` && (_ = 3 - _))
-                      : y === g
-                        ? ((t = `attr`), (m = g), (h = !0), a === `>` && x())
+                      ? ((t = `raw`), d === `script` && (l = 3 - l))
+                      : d === c
+                        ? ((t = `attr`), (a = c), (s = !0), m === `>` && f())
                         : ((t = `raw`), e--);
             }
           }
-          return ((t === `lt` || t === `endlt` || t === `name`) && b(!0)) ||
-            (t === `md` && d + f > 0) ||
-            (i.length > 0 &&
-              o <= n &&
-              (t === `rlt` ||
-                ((t === `rname` || t === `rdname`) && i.some((e) => e.startsWith(y)))))
-            ? ((e = r.slice(n)), (t = t[0] === `r` ? `raw` : `data`), a + r.slice(o, n))
-            : a + r.slice(o);
+          return (t === `lt` || t === `endlt` || t === `name`) &&
+            (s ? r === 0 && `template`.startsWith(a) : `plaintext`.startsWith(a))
+            ? ((e = i.slice(n)), (t = `data`), o + i.slice(p, n))
+            : o + i.slice(p);
         };
       return {
-        guard: S,
+        guard: p,
         end: () => {
           let n = e && `&lt;` + e.slice(1);
-          for (e = ``; t !== `data` || r > 0 || i.length > 0;)
-            n += S(
+          for (e = ``; t !== `data` || r > 0 || i > 0;)
+            n += p(
               t === `dq`
                 ? `">`
                 : t === `sq`
@@ -330,12 +256,12 @@ async function anonymous(__context__) {
                   : t[0] === `c`
                     ? `-->`
                     : t[0] === `r`
-                      ? _ === 2
+                      ? l === 2
                         ? `-->`
-                        : `</` + g + `>`
+                        : `</` + c + `>`
                       : t === `data`
-                        ? i.length > 0
-                          ? `</` + i[0] + `>`
+                        ? i > 0
+                          ? `</noscript>`
                           : `</template>`
                         : `>`,
             );
@@ -343,7 +269,7 @@ async function anonymous(__context__) {
         },
       };
     }
-    function d(e) {
+    function c(e) {
       let t = new Set(),
         n = [],
         r = `name="` + e,
@@ -365,103 +291,102 @@ async function anonymous(__context__) {
         },
       };
     }
-    function f(e, t, o) {
-      let s = new TextEncoder(),
-        c = new TextDecoder(),
-        l = new Set(),
+    function l(e, t, o) {
+      let l = new TextEncoder(),
+        u = new TextDecoder(),
+        d = new Set(),
         f = { cancelled: !1, activeReader: void 0 };
       return new ReadableStream({
         async pull(i) {
-          let p,
-            { seen: m, found: h, scan: g } = d(o),
-            _,
-            v = !1,
+          let { guard: p, end: m } = s(),
+            { seen: h, found: g, scan: _ } = c(o),
+            v,
             y = !1,
-            b = (e) => {
-              f.cancelled || (t.length > 0 && g(e), i.enqueue(s.encode(e)));
+            b = !1,
+            x = (e) => {
+              f.cancelled || (t.length > 0 && _(e), i.enqueue(l.encode(e)));
             },
-            x = () => {
-              ((v = !0),
-                (p = u()),
-                y ||
-                  ((y = !0),
-                  b(
+            S = () => {
+              ((y = !0),
+                b ||
+                  ((b = !0),
+                  x(
                     "<script>window.__renduPatch=typeof HTMLTemplateElement<`u`&&`htmlFor`in HTMLTemplateElement.prototype?function(){}:function(){let e=document.currentScript,t=e&&e.previousElementSibling;if(!(!t||t.tagName!==`TEMPLATE`||!t.hasAttribute(`for`)))try{let e=t.getAttribute(`for`);if(!e)return;let n=e=>e.target?`?`+e.target+` `+e.data:e.data,r=document.createTreeWalker(document,192),i=null,a=null;for(let t=r.nextNode();t;t=r.nextNode()){let r=/^\\?(marker|start)\\s+name=[\"']?([^\"'\\s?>]+)/.exec(n(t));if(r&&r[2]===e){i=t,r[1]===`marker`&&(a=t);break}}if(!i)return;if(a!==i)for(let e=i.nextSibling,t=0;e;e=e.nextSibling){if(e.nodeType!==7&&e.nodeType!==8)continue;let r=n(e);if(/^\\?start\\b/.test(r))t++;else if(/^\\?end\\b/.test(r)){if(t===0){a=e;break}t--}}let o=i.parentNode;if(!o)return;if(a!==i)for(let e=i.nextSibling,t;e&&e!==a;e=t)t=e.nextSibling,o.removeChild(e);o.insertBefore(t.content,a),a&&a!==i&&o.removeChild(a),o.removeChild(i)}finally{t.remove()}};<\/script>",
                   )),
-                b(`<template for="` + _ + `">`));
+                x(`<template for="` + v + `">`));
             },
-            S = (e) => {
+            C = (e) => {
               if (f.cancelled) return;
-              if (_ === void 0) {
+              if (v === void 0) {
                 let t = n(e);
-                t ? i.enqueue(t) : b(String(e));
+                t ? i.enqueue(t) : x(String(e));
                 return;
               }
-              let t = r(c, e);
+              let t = r(u, e);
               if (!t) return;
-              (v || x(), g(t));
-              let a = p.guard(t);
-              a && i.enqueue(s.encode(a));
+              (y || S(), _(t));
+              let a = p(t);
+              a && i.enqueue(l.encode(a));
             },
-            C = a(f, S);
+            w = a(f, C);
           for (let t of e) {
             if (f.cancelled) return;
-            await C(t);
+            await w(t);
           }
-          let w = async (e, t) => {
+          let T = async (e, t) => {
               f.activeReader = e;
               try {
                 for (let n = t; !n.done; n = await e.read()) {
                   if (f.cancelled) return;
-                  S(n.value);
+                  C(n.value);
                 }
               } finally {
-                ((f.activeReader = void 0), l.delete(e), e.releaseLock());
+                ((f.activeReader = void 0), d.delete(e), e.releaseLock());
               }
             },
-            T = 0,
-            E = [],
-            D = 0,
-            O,
-            k = (e) => {
-              (T++,
+            E = 0,
+            D = [],
+            O = 0,
+            k,
+            A = (e) => {
+              (E++,
                 e.then((e) => {
-                  (E.push(e), O?.());
+                  (D.push(e), k?.());
                 }));
             },
-            A = 0,
             j = 0,
-            M = new Map(),
-            N = () => {
-              for (let e of h.splice(0)) {
-                let n = M.get(e);
-                n !== void 0 && (M.delete(e), k(t[n].settled));
+            M = 0,
+            N = new Map(),
+            P = () => {
+              for (let e of g.splice(0)) {
+                let n = N.get(e);
+                n !== void 0 && (N.delete(e), A(t[n].settled));
               }
-              for (; A < t.length; A++) {
-                let e = t[A];
-                m.has(e.name) ? k(e.settled) : M.set(e.name, A);
+              for (; j < t.length; j++) {
+                let e = t[j];
+                h.has(e.name) ? A(e.settled) : N.set(e.name, j);
               }
-              if (T === 0 && M.size > 0) {
-                for (; !M.has(t[j].name);) j++;
-                (M.delete(t[j].name), k(t[j].settled));
+              if (E === 0 && N.size > 0) {
+                for (; !N.has(t[M].name);) M++;
+                (N.delete(t[M].name), A(t[M].settled));
               }
             };
-          for (N(); T > 0;) {
+          for (P(); E > 0;) {
             if (f.cancelled) return;
-            D === E.length && (await new Promise((e) => (O = e)));
-            let e = E[D++];
-            if ((D === E.length && (E.length = D = 0), T--, f.cancelled)) return;
+            O === D.length && (await new Promise((e) => (k = e)));
+            let e = D[O++];
+            if ((O === D.length && (D.length = O = 0), E--, f.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
               let { entry: t, value: n } = e,
                 r = n instanceof Response ? n.body : n;
-              if (r instanceof ReadableStream && T > 0)
+              if (r instanceof ReadableStream && E > 0)
                 try {
                   let e = r.getReader();
-                  (l.add(e),
-                    k(
+                  (d.add(e),
+                    A(
                       e.read().then(
                         (n) => ({ entry: t, reader: e, first: n }),
-                        (n) => (l.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
+                        (n) => (d.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
                       ),
                     ));
                   continue;
@@ -470,20 +395,20 @@ async function anonymous(__context__) {
                 }
             }
             if (e.failed) {
-              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), N());
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), P());
               continue;
             }
-            _ = e.entry.name;
+            v = e.entry.name;
             let t = !1;
             try {
-              await (e.reader ? w(e.reader, e.first) : C(e.value));
+              await (e.reader ? T(e.reader, e.first) : w(e.value));
             } catch (n) {
               ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
             }
-            let n = c.decode();
-            (n && (v || !t) && S(n), !v && !t && x());
-            let r = v ? p.end() + `</template>` : ``;
-            ((_ = void 0), (v = !1), r && (b(r), b(`<script>__renduPatch()<\/script>`)), N());
+            let n = u.decode();
+            (n && (y || !t) && C(n), !y && !t && S());
+            let r = y ? m() + `</template>` : ``;
+            ((v = void 0), (y = !1), r && (x(r), x(`<script>__renduPatch()<\/script>`)), P());
           }
           f.cancelled || i.close();
         },
@@ -491,15 +416,15 @@ async function anonymous(__context__) {
           ((f.cancelled = !0), (f.reason = n));
           let r = f.activeReader;
           f.activeReader = void 0;
-          for (let e of l) e.cancel(n).catch(() => {});
-          l.clear();
+          for (let e of d) e.cancel(n).catch(() => {});
+          d.clear();
           for (let t of e) i(t, n);
           for (let e of t) e.settled?.then((e) => i(`value` in e && e.value, n));
           return r?.cancel(n);
         },
       });
     }
-    return f;
+    return l;
   })();
   __sink__ = void 0;
   return concatStreams(__chunks__, __deferred__, __deferId__);
