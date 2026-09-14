@@ -1,4 +1,4 @@
-import { createWrite, type StreamState } from "./_shared.ts";
+import { createWrite, discard, type StreamState } from "./_shared.ts";
 
 /**
  * `defer()`: out-of-order streaming via `<template for>` patches. Spec transcribed in
@@ -565,6 +565,24 @@ export default function concatStreams(
   const decoder = new TextDecoder();
   const openReaders = new Set<ReadableStreamDefaultReader<unknown>>();
   const state: StreamState = { cancelled: false, activeReader: undefined };
+  /**
+   * Cancel the output, or clean up after a main chunk failed it: also release the upstream bodies
+   * held by racing readers and by the chunks and deferred values that are not written yet (the
+   * one being written releases itself, see `createWrite()`).
+   */
+  const abort = (reason: unknown) => {
+    state.cancelled = true;
+    state.reason = reason;
+    const reader = state.activeReader;
+    state.activeReader = undefined;
+    for (const open of openReaders) open.cancel(reason).catch(() => {});
+    openReaders.clear();
+    for (const chunk of chunks) discard(chunk, reason);
+    for (const entry of deferred) {
+      entry.settled?.then((settled) => discard("value" in settled && settled.value, reason));
+    }
+    return reader?.cancel(reason);
+  };
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       const { guard, end: patchEnd } = createPatchGuard();
@@ -624,9 +642,14 @@ export default function concatStreams(
 
       const write = createWrite(state, enqueue);
 
-      for (const chunk of chunks) {
-        if (state.cancelled) return;
-        await write(chunk);
+      try {
+        for (const chunk of chunks) {
+          if (state.cancelled) return;
+          await write(chunk);
+        }
+      } catch (error) {
+        abort(error);
+        throw error;
       }
 
       /*
@@ -720,7 +743,11 @@ export default function concatStreams(
                 entry,
                 reader.read().then(
                   (first): Settled => ({ entry, reader, first }),
-                  (error): Settled => ({ entry, error, failed: true }),
+                  (error): Settled => {
+                    openReaders.delete(reader);
+                    reader.releaseLock();
+                    return { entry, error, failed: true };
+                  },
                 ),
               );
               continue;
@@ -760,27 +787,6 @@ export default function concatStreams(
       controller.close();
     },
 
-    /**
-     * Also release the upstream bodies held by deferred values (racing readers, and values that
-     * were queued but never written).
-     */
-    cancel(reason) {
-      state.cancelled = true;
-      const reader = state.activeReader;
-      state.activeReader = undefined;
-      for (const open of openReaders) open.cancel(reason).catch(() => {});
-      openReaders.clear();
-      for (const entry of deferred) {
-        entry.settled?.then(
-          (settled) => {
-            const value = "value" in settled ? settled.value : undefined;
-            const body = value instanceof Response ? value.body : value;
-            if (body instanceof ReadableStream && !body.locked) body.cancel(reason).catch(() => {});
-          },
-          () => {},
-        );
-      }
-      return reader?.cancel(reason);
-    },
+    cancel: abort,
   });
 }

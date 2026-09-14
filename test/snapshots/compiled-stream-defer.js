@@ -33,51 +33,71 @@ async function anonymous(__context__) {
       return typeof e?.then == `function`;
     }
     function t(t) {
-      let n = (__sink__ = []),
-        r;
+      let r = (__sink__ = []),
+        i;
       try {
-        r = t();
+        i = t();
+      } catch (e) {
+        for (let t of r) n(t, e);
+        throw e;
       } finally {
         __sink__ = void 0;
       }
-      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
+      return (r.length > 0 && e(i) && i.then(void 0, () => {}), [i, r]);
     }
-    function n(n, r) {
-      let i = async (a) => {
-        if (typeof a == `function`) {
-          let [e, r] = t(a);
-          a = e;
-          for (let e of r) {
-            if (n.cancelled) return;
-            await i(e);
+    function n(t, r) {
+      if (e(t)) {
+        t.then(
+          (e) => n(e, r),
+          () => {},
+        );
+        return;
+      }
+      let i = t instanceof Response ? t.body : t;
+      i instanceof ReadableStream && !i.locked && i.cancel(r).catch(() => {});
+    }
+    function r(r, i) {
+      let a = async (o) => {
+        if (typeof o == `function` && !r.cancelled) {
+          let [e, r] = t(o);
+          o = e;
+          try {
+            for (let e of r) await a(e);
+          } catch (t) {
+            for (let i of [...r, e]) n(i, t);
+            throw t;
           }
         }
-        if ((e(a) && (a = await a), a instanceof Response && (a = a.body), a != null)) {
-          if (a instanceof ReadableStream) {
-            let e = a.getReader();
-            n.activeReader = e;
+        if ((e(o) && !r.cancelled && (o = await o), r.cancelled)) {
+          n(o, r.reason);
+          return;
+        }
+        if ((o instanceof Response && (o = o.body), o != null)) {
+          if (o instanceof ReadableStream) {
+            let e = o.getReader();
+            r.activeReader = e;
             try {
               for (;;) {
-                let { value: t, done: i } = await e.read();
-                if (i) break;
-                if (n.cancelled) return;
-                r(t);
+                let { value: t, done: n } = await e.read();
+                if (n) break;
+                if (r.cancelled) return;
+                i(t);
               }
             } finally {
-              ((n.activeReader = void 0), e.releaseLock());
+              ((r.activeReader = void 0), e.releaseLock());
             }
-          } else r(a);
+          } else i(o);
         }
       };
-      return i;
+      return a;
     }
-    let r = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
-      i = [`noscript`, `style`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
-    function a() {
+    let i = [`script`, `style`, `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes`],
+      a = [`noscript`, `style`, `title`, `xmp`, `iframe`, `noembed`, `noframes`];
+    function o() {
       let e = ``,
         t = `data`,
         n = 0,
-        a = 0,
+        r = 0,
         o = [],
         s = -1,
         c = ``,
@@ -91,29 +111,29 @@ async function anonymous(__context__) {
           return o.length > 0
             ? t(`template`) || (!l && t(`plaintext`))
             : l
-              ? a === 0 && t(`template`)
+              ? r === 0 && t(`template`)
               : t(`plaintext`);
         },
         h = () => {
           ((t = `data`),
             c === `template`
-              ? ((a += l ? -1 : 1), a < s && (s = -1))
+              ? ((r += l ? -1 : 1), r < s && (s = -1))
               : c === `select`
                 ? !l && s < 0
-                  ? (s = a)
-                  : l && a === s && (s = -1)
+                  ? (s = r)
+                  : l && r === s && (s = -1)
                 : l
                   ? o.includes(c) && (o = o.filter((e) => e !== c))
-                  : c === `noscript` || (s >= 0 && i.includes(c))
+                  : c === `noscript` || (s >= 0 && a.includes(c))
                     ? o.includes(c) || o.push(c)
-                    : r.includes(c) && ((t = `raw`), (u = c), (d = 0), (f = 0)));
+                    : i.includes(c) && ((t = `raw`), (u = c), (d = 0), (f = 0)));
         },
         g = (r) => {
           ((r = e + r), (e = ``));
-          let a = ``,
+          let i = ``,
             s = 0,
             g = (e) => {
-              s <= e && ((a += r.slice(s, e) + `&lt;`), (s = e + 1));
+              s <= e && ((i += r.slice(s, e) + `&lt;`), (s = e + 1));
             },
             _ = (e, t) => {
               for (t < 0 && (t = r.length); o.length > 0 && e < t; e++)
@@ -121,7 +141,7 @@ async function anonymous(__context__) {
               return t;
             };
           for (let e = 0; e < r.length; e++) {
-            let a = r[e],
+            let i = r[e],
               s = r.charCodeAt(e),
               v = s === 32 || s === 9 || s === 10 || s === 12 || s === 13,
               y = (s >= 65 && s <= 90) || (s >= 97 && s <= 122);
@@ -133,54 +153,54 @@ async function anonymous(__context__) {
                   e < 0 ? (e = r.length) : ((t = `lt`), (n = e), (c = ``), (l = !1)));
                 break;
               case `lt`:
-                (a === `/`
+                (i === `/`
                   ? (t = `endlt`)
-                  : a === `!`
+                  : i === `!`
                     ? (t = `md`)
-                    : a === `?`
+                    : i === `?`
                       ? (t = `bogus`)
                       : ((t = y ? `name` : `data`), e--),
                   (l = t === `endlt`));
                 break;
               case `endlt`:
-                a === `>` ? (t = `data`) : ((t = y ? `name` : `bogus`), e--);
+                i === `>` ? (t = `data`) : ((t = y ? `name` : `bogus`), e--);
                 break;
               case `name`:
-                v || a === `/`
+                v || i === `/`
                   ? (t = `attr`)
-                  : a === `>`
+                  : i === `>`
                     ? h()
-                    : (c.length < 10 && (c += y ? a.toLowerCase() : a),
+                    : (c.length < 10 && (c += y ? i.toLowerCase() : i),
                       m(!1) && (g(n), (t = `data`)));
                 break;
               case `attr`:
-                a === `>` ? h() : !v && a !== `/` && (t = `aname`);
+                i === `>` ? h() : !v && i !== `/` && (t = `aname`);
                 break;
               case `aname`:
-                a === `>` ? h() : a === `/` ? (t = `attr`) : a === `=` && (t = `aval`);
+                i === `>` ? h() : i === `/` ? (t = `attr`) : i === `=` && (t = `aval`);
                 break;
               case `aval`:
-                a === `>` ? h() : a === `"` ? (t = `dq`) : a === `'` ? (t = `sq`) : v || (t = `uq`);
+                i === `>` ? h() : i === `"` ? (t = `dq`) : i === `'` ? (t = `sq`) : v || (t = `uq`);
                 break;
               case `dq`:
               case `sq`:
                 ((e = _(e, r.indexOf(t === `dq` ? `"` : `'`, e))), e < r.length && (t = `attr`));
                 break;
               case `uq`:
-                a === `>` ? h() : v && (t = `attr`);
+                i === `>` ? h() : v && (t = `attr`);
                 break;
               case `md`:
               case `mdd`:
-                a === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
+                i === `-` ? (t = t === `md` ? `mdd` : `cs`) : ((t = `bogus`), e--);
                 break;
               case `bogus`:
                 ((e = _(e, r.indexOf(`>`, e))), e < r.length && (t = `data`));
                 break;
               case `cs`:
               case `csd`:
-                a === `>`
+                i === `>`
                   ? (t = `data`)
-                  : a === `-`
+                  : i === `-`
                     ? (t = t === `cs` ? `csd` : `ce`)
                     : ((t = `c`), e--);
                 break;
@@ -188,38 +208,38 @@ async function anonymous(__context__) {
                 ((e = _(e, r.indexOf(`-`, e))), e < r.length && (t = `ced`));
                 break;
               case `ced`:
-                a === `-` ? (t = `ce`) : ((t = `c`), e--);
+                i === `-` ? (t = `ce`) : ((t = `c`), e--);
                 break;
               case `ce`:
               case `ceb`:
-                a === `>`
+                i === `>`
                   ? (t = `data`)
-                  : a === `-`
+                  : i === `-`
                     ? (t = t === `ce` ? `ce` : `ced`)
-                    : a === `!` && t === `ce`
+                    : i === `!` && t === `ce`
                       ? (t = `ceb`)
                       : ((t = `c`), e--);
                 break;
               case `raw`:
                 d === 0
                   ? ((e = r.indexOf(`<`, e)), e < 0 ? (e = r.length) : ((t = `rlt`), (n = e)))
-                  : a === `<`
+                  : i === `<`
                     ? ((t = `rlt`), (n = e), (f = 0))
-                    : a === `-`
+                    : i === `-`
                       ? f++
-                      : (a === `>` && f > 1 && (d = 0), (f = 0));
+                      : (i === `>` && f > 1 && (d = 0), (f = 0));
                 break;
               case `rlt`:
                 ((p = ``),
-                  a === `/`
+                  i === `/`
                     ? (t = d === 2 ? `rdname` : `rname`)
-                    : a === `!` && u === `script` && d === 0
+                    : i === `!` && u === `script` && d === 0
                       ? (t = `rbang`)
                       : ((t = y && d === 1 ? `rdname` : `raw`), e--));
                 break;
               case `rbang`:
               case `rbangd`:
-                a === `-`
+                i === `-`
                   ? t === `rbang`
                     ? (t = `rbangd`)
                     : ((t = `raw`), (d = 1), (f = 2))
@@ -228,14 +248,14 @@ async function anonymous(__context__) {
               case `rname`:
               case `rdname`:
                 y
-                  ? (p.length < 10 && (p += a.toLowerCase()),
-                    p !== u && o.length > 0 && i.includes(p) && g(n))
-                  : !v && a !== `/` && a !== `>`
+                  ? (p.length < 10 && (p += i.toLowerCase()),
+                    p !== u && o.length > 0 && a.includes(p) && g(n))
+                  : !v && i !== `/` && i !== `>`
                     ? ((t = `raw`), e--)
                     : t === `rdname`
                       ? ((t = `raw`), p === `script` && (d = 3 - d))
                       : p === u
-                        ? ((t = `attr`), (c = u), (l = !0), a === `>` && h())
+                        ? ((t = `attr`), (c = u), (l = !0), i === `>` && h())
                         : ((t = `raw`), e--);
             }
           }
@@ -243,15 +263,15 @@ async function anonymous(__context__) {
             (o.length > 0 &&
               s <= n &&
               (t === `rlt` ||
-                ((t === `rname` || t === `rdname`) && i.some((e) => e.startsWith(p)))))
-            ? ((e = r.slice(n)), (t = t[0] === `r` ? `raw` : `data`), a + r.slice(s, n))
-            : a + r.slice(s);
+                ((t === `rname` || t === `rdname`) && a.some((e) => e.startsWith(p)))))
+            ? ((e = r.slice(n)), (t = t[0] === `r` ? `raw` : `data`), i + r.slice(s, n))
+            : i + r.slice(s);
         };
       return {
         guard: g,
         end: () => {
           let n = e && `&lt;` + e.slice(1);
-          for (e = ``; t !== `data` || a > 0 || o.length > 0;)
+          for (e = ``; t !== `data` || r > 0 || o.length > 0;)
             n += g(
               t === `dq`
                 ? `">`
@@ -273,7 +293,7 @@ async function anonymous(__context__) {
         },
       };
     }
-    function o(e) {
+    function s(e) {
       let t = new Set(),
         n = `name="` + e,
         r = n.length + 20,
@@ -292,85 +312,99 @@ async function anonymous(__context__) {
         },
       };
     }
-    function s(e, t, r) {
-      let i = new TextEncoder(),
-        s = new TextDecoder(),
-        c = new Set(),
-        l = { cancelled: !1, activeReader: void 0 };
+    function c(e, t, i) {
+      let a = new TextEncoder(),
+        c = new TextDecoder(),
+        l = new Set(),
+        u = { cancelled: !1, activeReader: void 0 },
+        d = (r) => {
+          ((u.cancelled = !0), (u.reason = r));
+          let i = u.activeReader;
+          u.activeReader = void 0;
+          for (let e of l) e.cancel(r).catch(() => {});
+          l.clear();
+          for (let t of e) n(t, r);
+          for (let e of t) e.settled?.then((e) => n(`value` in e && e.value, r));
+          return i?.cancel(r);
+        };
       return new ReadableStream({
-        async pull(u) {
-          let { guard: d, end: f } = a(),
-            { seen: p, scan: m } = o(r),
-            h,
-            g = !1,
+        async pull(n) {
+          let { guard: f, end: p } = o(),
+            { seen: m, scan: h } = s(i),
+            g,
             _ = !1,
-            v = (e) => {
-              l.cancelled || (t.length > 0 && m(e), u.enqueue(i.encode(e)));
+            v = !1,
+            y = (e) => {
+              u.cancelled || (t.length > 0 && h(e), n.enqueue(a.encode(e)));
             },
-            y = () => {
-              ((g = !0),
-                _ ||
-                  ((_ = !0),
-                  v(
+            b = () => {
+              ((_ = !0),
+                v ||
+                  ((v = !0),
+                  y(
                     "<script>window.__renduPatch=typeof HTMLTemplateElement<`u`&&`htmlFor`in HTMLTemplateElement.prototype?function(){}:function(){let e=document.currentScript,t=e&&e.previousElementSibling;if(!(!t||t.tagName!==`TEMPLATE`||!t.hasAttribute(`for`)))try{let e=t.getAttribute(`for`);if(!e)return;let n=e=>e.target?`?`+e.target+` `+e.data:e.data,r=document.createTreeWalker(document,192),i=null,a=null;for(let t=r.nextNode();t;t=r.nextNode()){let r=/^\\?(marker|start)\\s+name=[\"']?([^\"'\\s?>]+)/.exec(n(t));if(r&&r[2]===e){i=t,r[1]===`marker`&&(a=t);break}}if(!i)return;if(a!==i)for(let e=i.nextSibling,t=0;e;e=e.nextSibling){if(e.nodeType!==7&&e.nodeType!==8)continue;let r=n(e);if(/^\\?start\\b/.test(r))t++;else if(/^\\?end\\b/.test(r)){if(t===0){a=e;break}t--}}let o=i.parentNode;if(!o)return;if(a!==i)for(let e=i.nextSibling,t;e&&e!==a;e=t)t=e.nextSibling,o.removeChild(e);o.insertBefore(t.content,a),a&&a!==i&&o.removeChild(a),o.removeChild(i)}finally{t.remove()}};<\/script>",
                   )),
-                v(`<template for="` + h + `">`));
+                y(`<template for="` + g + `">`));
             },
-            b = (e) => {
-              if (l.cancelled) return;
-              if (h === void 0) {
-                ArrayBuffer.isView(e) ? u.enqueue(e) : v(String(e));
+            x = (e) => {
+              if (u.cancelled) return;
+              if (g === void 0) {
+                ArrayBuffer.isView(e) ? n.enqueue(e) : y(String(e));
                 return;
               }
-              let t = ArrayBuffer.isView(e) ? s.decode(e, { stream: !0 }) : s.decode() + String(e);
+              let t = ArrayBuffer.isView(e) ? c.decode(e, { stream: !0 }) : c.decode() + String(e);
               if (!t) return;
-              (g || y(), m(t));
-              let n = d(t);
-              n && u.enqueue(i.encode(n));
+              (_ || b(), h(t));
+              let r = f(t);
+              r && n.enqueue(a.encode(r));
             },
-            x = n(l, b);
-          for (let t of e) {
-            if (l.cancelled) return;
-            await x(t);
+            S = r(u, x);
+          try {
+            for (let t of e) {
+              if (u.cancelled) return;
+              await S(t);
+            }
+          } catch (e) {
+            throw (d(e), e);
           }
-          let S = async (e, t) => {
-              l.activeReader = e;
+          let C = async (e, t) => {
+              u.activeReader = e;
               try {
                 for (let n = t; !n.done; n = await e.read()) {
-                  if (l.cancelled) return;
-                  b(n.value);
+                  if (u.cancelled) return;
+                  x(n.value);
                 }
               } finally {
-                ((l.activeReader = void 0), c.delete(e), e.releaseLock());
+                ((u.activeReader = void 0), l.delete(e), e.releaseLock());
               }
             },
-            C = 0,
-            w = new Map(),
-            T = new Set(),
-            E = () => {
-              for (; C < t.length;) T.add(t[C++]);
-              for (let e of T) p.has(e.name) && (T.delete(e), w.set(e, e.settled));
-              if (w.size === 0 && T.size > 0) {
-                let e = T.values().next().value;
-                (T.delete(e), w.set(e, e.settled));
+            w = 0,
+            T = new Map(),
+            E = new Set(),
+            D = () => {
+              for (; w < t.length;) E.add(t[w++]);
+              for (let e of E) m.has(e.name) && (E.delete(e), T.set(e, e.settled));
+              if (T.size === 0 && E.size > 0) {
+                let e = E.values().next().value;
+                (E.delete(e), T.set(e, e.settled));
               }
             };
-          for (E(); w.size > 0;) {
-            if (l.cancelled) return;
-            let e = await Promise.race(w.values());
-            if ((w.delete(e.entry), l.cancelled)) return;
+          for (D(); T.size > 0;) {
+            if (u.cancelled) return;
+            let e = await Promise.race(T.values());
+            if ((T.delete(e.entry), u.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
               let { entry: t, value: n } = e,
                 r = n instanceof Response ? n.body : n;
-              if (r instanceof ReadableStream && w.size > 0)
+              if (r instanceof ReadableStream && T.size > 0)
                 try {
                   let e = r.getReader();
-                  (c.add(e),
-                    w.set(
+                  (l.add(e),
+                    T.set(
                       t,
                       e.read().then(
                         (n) => ({ entry: t, reader: e, first: n }),
-                        (e) => ({ entry: t, error: e, failed: !0 }),
+                        (n) => (l.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
                       ),
                     ));
                   continue;
@@ -379,43 +413,27 @@ async function anonymous(__context__) {
                 }
             }
             if (e.failed) {
-              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), E());
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), D());
               continue;
             }
-            h = e.entry.name;
+            g = e.entry.name;
             let t = !1;
             try {
-              await (e.reader ? S(e.reader, e.first) : x(e.value));
+              await (e.reader ? C(e.reader, e.first) : S(e.value));
             } catch (n) {
               ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
             }
-            let n = s.decode();
-            (n && b(n), !g && !t && y());
-            let r = g ? f() + `</template>` : ``;
-            ((h = void 0), (g = !1), r && (v(r), v(`<script>__renduPatch()<\/script>`)), E());
+            let n = c.decode();
+            (n && x(n), !_ && !t && b());
+            let r = _ ? p() + `</template>` : ``;
+            ((g = void 0), (_ = !1), r && (y(r), y(`<script>__renduPatch()<\/script>`)), D());
           }
-          l.cancelled || u.close();
+          u.cancelled || n.close();
         },
-        cancel(e) {
-          l.cancelled = !0;
-          let n = l.activeReader;
-          l.activeReader = void 0;
-          for (let t of c) t.cancel(e).catch(() => {});
-          c.clear();
-          for (let n of t)
-            n.settled?.then(
-              (t) => {
-                let n = `value` in t ? t.value : void 0,
-                  r = n instanceof Response ? n.body : n;
-                r instanceof ReadableStream && !r.locked && r.cancel(e).catch(() => {});
-              },
-              () => {},
-            );
-          return n?.cancel(e);
-        },
+        cancel: d,
       });
     }
-    return s;
+    return c;
   })();
   __sink__ = void 0;
   return concatStreams(__chunks__, __deferred__, __deferId__);

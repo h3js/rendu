@@ -1,4 +1,4 @@
-import { callEchoed, isThenable } from "./_shared.ts";
+import { callEchoed, discard, isThenable } from "./_shared.ts";
 
 /**
  * Text runtime: renders the chunks in order into a string. A function chunk's synchronous
@@ -15,42 +15,48 @@ declare const __DEFER__: boolean;
 async function render(chunks: unknown[]): Promise<string> {
   let out = "";
   for (let chunk of chunks) {
-    if (typeof chunk === "function") {
-      const [result, echoed] = callEchoed(chunk as () => unknown);
-      chunk = result;
-      if (echoed.length > 0) {
-        out += await render(echoed);
-      }
-    }
-    if (isThenable(chunk)) {
-      chunk = await chunk;
-    }
-    if (chunk instanceof Response) {
-      chunk = chunk.body;
-    }
-    if (chunk === null || chunk === undefined) {
-      continue;
-    }
-    if (chunk instanceof ReadableStream) {
-      const reader: ReadableStreamDefaultReader<unknown> = chunk.getReader();
-      const decoder = new TextDecoder();
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          out +=
-            typeof value === "string"
-              ? value
-              : decoder.decode(value as AllowSharedBufferSource, { stream: true });
+    try {
+      if (typeof chunk === "function") {
+        const [result, echoed] = callEchoed(chunk as () => unknown);
+        chunk = result;
+        if (echoed.length > 0) {
+          out += await render(echoed);
         }
-        out += decoder.decode();
-      } finally {
-        reader.releaseLock();
       }
-    } else if (typeof chunk === "string") {
-      out += chunk;
-    } else {
-      out += ArrayBuffer.isView(chunk) ? new TextDecoder().decode(chunk) : String(chunk);
+      if (isThenable(chunk)) {
+        chunk = await chunk;
+      }
+      if (chunk instanceof Response) {
+        chunk = chunk.body;
+      }
+      if (chunk === null || chunk === undefined) {
+        continue;
+      }
+      if (chunk instanceof ReadableStream) {
+        const reader: ReadableStreamDefaultReader<unknown> = chunk.getReader();
+        const decoder = new TextDecoder();
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            out +=
+              typeof value === "string"
+                ? value
+                : decoder.decode(value as AllowSharedBufferSource, { stream: true });
+          }
+          out += decoder.decode();
+        } finally {
+          reader.releaseLock();
+        }
+      } else if (typeof chunk === "string") {
+        out += chunk;
+      } else {
+        out += ArrayBuffer.isView(chunk) ? new TextDecoder().decode(chunk) : String(chunk);
+      }
+    } catch (error) {
+      // Release what will not be read: the chunks after this one, and a function's result.
+      for (const rest of [chunk, ...chunks]) discard(rest, error);
+      throw error;
     }
   }
   return out;
@@ -72,17 +78,24 @@ type TextDeferEntry = [name: string, value: Promise<unknown>];
  *   it, whichever was deferred first. A marker that is never written as markup (not echoed,
  *   escaped with `{{ }}`) is not replaced, and neither is anything that is not this render's
  *   marker (names carry the per-render `deferId`).
+ * - When the render fails, the deferred values that will not be read are discarded.
  */
 async function renderDeferred(
   chunks: unknown[],
   deferred: TextDeferEntry[],
   deferId: string,
 ): Promise<string> {
-  const out = await render(chunks);
+  let out: string;
   const contents = new Map<string, string>();
-  for (let i = 0; i < deferred.length; i++) {
-    const [name, value] = deferred[i]!;
-    contents.set(name, await render([await value]));
+  try {
+    out = await render(chunks);
+    for (let i = 0; i < deferred.length; i++) {
+      const [name, value] = deferred[i]!;
+      contents.set(name, await render([await value]));
+    }
+  } catch (error) {
+    for (const [, value] of deferred) discard(value, error);
+    throw error;
   }
   const marker = new RegExp('<\\?marker name="(' + deferId + '\\d+)">', "g");
   const replace = (text: string): string =>

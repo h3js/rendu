@@ -21,48 +21,65 @@ async function anonymous(__context__) {
       return typeof e?.then == `function`;
     }
     function t(t) {
-      let n = (__sink__ = []),
-        r;
+      let r = (__sink__ = []),
+        i;
       try {
-        r = t();
+        i = t();
+      } catch (e) {
+        for (let t of r) n(t, e);
+        throw e;
       } finally {
         __sink__ = void 0;
       }
-      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
+      return (r.length > 0 && e(i) && i.then(void 0, () => {}), [i, r]);
     }
-    async function n(r) {
-      let i = ``;
-      for (let a of r) {
-        if (typeof a == `function`) {
-          let [e, r] = t(a);
-          ((a = e), r.length > 0 && (i += await n(r)));
-        }
-        if ((e(a) && (a = await a), a instanceof Response && (a = a.body), a != null)) {
-          if (a instanceof ReadableStream) {
-            let e = a.getReader(),
+    function n(t, r) {
+      if (e(t)) {
+        t.then(
+          (e) => n(e, r),
+          () => {},
+        );
+        return;
+      }
+      let i = t instanceof Response ? t.body : t;
+      i instanceof ReadableStream && !i.locked && i.cancel(r).catch(() => {});
+    }
+    async function r(i) {
+      let a = ``;
+      for (let o of i)
+        try {
+          if (typeof o == `function`) {
+            let [e, n] = t(o);
+            ((o = e), n.length > 0 && (a += await r(n)));
+          }
+          if ((e(o) && (o = await o), o instanceof Response && (o = o.body), o == null)) continue;
+          if (o instanceof ReadableStream) {
+            let e = o.getReader(),
               t = new TextDecoder();
             try {
               for (;;) {
                 let { value: n, done: r } = await e.read();
                 if (r) break;
-                i += typeof n == `string` ? n : t.decode(n, { stream: !0 });
+                a += typeof n == `string` ? n : t.decode(n, { stream: !0 });
               }
-              i += t.decode();
+              a += t.decode();
             } finally {
               e.releaseLock();
             }
           } else
-            i +=
-              typeof a == `string`
-                ? a
-                : ArrayBuffer.isView(a)
-                  ? new TextDecoder().decode(a)
-                  : String(a);
+            a +=
+              typeof o == `string`
+                ? o
+                : ArrayBuffer.isView(o)
+                  ? new TextDecoder().decode(o)
+                  : String(o);
+        } catch (e) {
+          for (let t of [o, ...i]) n(t, e);
+          throw e;
         }
-      }
-      return i;
+      return a;
     }
-    return n;
+    return r;
   })();
   __sink__ = void 0;
   return __render__(__chunks__);

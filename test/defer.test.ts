@@ -249,6 +249,25 @@ describe("defer", () => {
     expect(error).toHaveBeenCalledOnce();
   });
 
+  it("releases a racing deferred body whose first read fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bad = new ReadableStream({
+      pull: (controller) => after(5, undefined).then(() => controller.error(new Error("down"))),
+    });
+    await collect(`<?= defer(bad) ?><?= defer(slow) ?>`, { bad, slow: after(20, "B") });
+    expect(bad.locked).toBe(false);
+    expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("cancels the deferred values left unread when text mode fails", async () => {
+    let cancelled: unknown;
+    const body = new ReadableStream({ cancel: (reason) => void (cancelled = reason) });
+    const render = compileTemplate(`<?= defer(body) ?><?= bad ?>`, { stream: false });
+    await expect(render({ body, bad: Promise.reject(new Error("boom")) })).rejects.toThrow("boom");
+    await after(0, undefined);
+    expect(cancelled).toEqual(new Error("boom"));
+  });
+
   describe("a deferred value that fails before any content", () => {
     // Even an empty <template for> replaces the placeholder, so no patch may go out at all:
     // whether the stream is written directly (the last pending entry) or races on its first chunk.

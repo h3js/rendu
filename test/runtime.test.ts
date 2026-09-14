@@ -118,6 +118,106 @@ describe("runtime", () => {
       await reader.cancel("client gone");
       expect(cancelled).toBe("client gone");
     });
+
+    /** A stream that records its reads (beyond the initial fill) and its cancellation. */
+    const tracked = (name: string, log: string[]) => {
+      let started = false;
+      return new ReadableStream({
+        pull(controller) {
+          if (started) log.push(`${name} read`);
+          started = true;
+          controller.enqueue("x");
+        },
+        cancel(reason) {
+          log.push(`${name} cancelled: ${reason}`);
+        },
+      });
+    };
+
+    it.each([
+      ["", ""],
+      ["defer", "<?= defer('d') ?>"],
+    ])(
+      "cancels chunks not read yet, even once a promise resolves to one (%s)",
+      async (_, prefix) => {
+        const log: string[] = [];
+        const late = Promise.withResolvers<ReadableStream>();
+        const stream = await compileTemplate(
+          `${prefix}<?= first ?><?= later ?><?= late.promise ?><?= fn ?>`,
+          { stream: true },
+        )({
+          first: tracked("first", log),
+          later: tracked("later", log),
+          late,
+          fn: () => log.push("fn called"),
+        });
+        const reader = stream.getReader();
+        await reader.read();
+        await reader.cancel("gone");
+        late.resolve(tracked("late", log));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        // `first` is being read when the output is cancelled: only the others must not be.
+        expect(log.filter((entry) => entry !== "first read").toSorted()).toEqual([
+          "first cancelled: gone",
+          "late cancelled: gone",
+          "later cancelled: gone",
+        ]);
+      },
+    );
+
+    it.each([true, false])(
+      "cancels the chunks left unread when a chunk fails the render (stream: %s)",
+      async (stream) => {
+        const log: string[] = [];
+        const result = compileTemplate(`<?= () => fn(echo) ?><?= later ?>`, { stream })({
+          fn: (echo: (chunk: unknown) => void) => {
+            echo(Promise.reject(new Error("boom")));
+            return tracked("result", log);
+          },
+          later: tracked("later", log),
+        });
+        const render = async () => {
+          const value = await result;
+          if (stream) await new Response(value as ReadableStream).text();
+        };
+        await expect(render()).rejects.toThrow("boom");
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        expect(log.toSorted()).toEqual([
+          "later cancelled: Error: boom",
+          "result cancelled: Error: boom",
+        ]);
+      },
+    );
+
+    it.each([
+      [true, ""],
+      [false, ""],
+      [true, "<?= defer('d') ?>"],
+      [false, "<?= defer('d') ?>"],
+    ])(
+      "cancels what a function chunk echoed before throwing (stream: %s) %s",
+      async (stream, prefix) => {
+        const log: string[] = [];
+        const render = async () => {
+          const value = await compileTemplate(`${prefix}<?= () => fn(echo) ?><?= later ?>`, {
+            stream,
+          })({
+            fn: (echo: (chunk: unknown) => void) => {
+              echo(tracked("echoed", log));
+              throw new Error("sync");
+            },
+            later: tracked("later", log),
+          });
+          if (stream) await new Response(value as ReadableStream).text();
+        };
+        await expect(render()).rejects.toThrow("sync");
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        expect(log.toSorted()).toEqual([
+          "echoed cancelled: Error: sync",
+          "later cancelled: Error: sync",
+        ]);
+      },
+    );
   });
 
   describe("functions and thenables", () => {

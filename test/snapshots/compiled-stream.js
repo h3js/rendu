@@ -18,66 +18,93 @@ async function anonymous(__context__) {
       return typeof e?.then == `function`;
     }
     function t(t) {
-      let n = (__sink__ = []),
-        r;
+      let r = (__sink__ = []),
+        i;
       try {
-        r = t();
+        i = t();
+      } catch (e) {
+        for (let t of r) n(t, e);
+        throw e;
       } finally {
         __sink__ = void 0;
       }
-      return (n.length > 0 && e(r) && r.then(void 0, () => {}), [r, n]);
+      return (r.length > 0 && e(i) && i.then(void 0, () => {}), [i, r]);
     }
-    function n(n, r) {
-      let i = async (a) => {
-        if (typeof a == `function`) {
-          let [e, r] = t(a);
-          a = e;
-          for (let e of r) {
-            if (n.cancelled) return;
-            await i(e);
+    function n(t, r) {
+      if (e(t)) {
+        t.then(
+          (e) => n(e, r),
+          () => {},
+        );
+        return;
+      }
+      let i = t instanceof Response ? t.body : t;
+      i instanceof ReadableStream && !i.locked && i.cancel(r).catch(() => {});
+    }
+    function r(r, i) {
+      let a = async (o) => {
+        if (typeof o == `function` && !r.cancelled) {
+          let [e, r] = t(o);
+          o = e;
+          try {
+            for (let e of r) await a(e);
+          } catch (t) {
+            for (let i of [...r, e]) n(i, t);
+            throw t;
           }
         }
-        if ((e(a) && (a = await a), a instanceof Response && (a = a.body), a != null)) {
-          if (a instanceof ReadableStream) {
-            let e = a.getReader();
-            n.activeReader = e;
+        if ((e(o) && !r.cancelled && (o = await o), r.cancelled)) {
+          n(o, r.reason);
+          return;
+        }
+        if ((o instanceof Response && (o = o.body), o != null)) {
+          if (o instanceof ReadableStream) {
+            let e = o.getReader();
+            r.activeReader = e;
             try {
               for (;;) {
-                let { value: t, done: i } = await e.read();
-                if (i) break;
-                if (n.cancelled) return;
-                r(t);
+                let { value: t, done: n } = await e.read();
+                if (n) break;
+                if (r.cancelled) return;
+                i(t);
               }
             } finally {
-              ((n.activeReader = void 0), e.releaseLock());
+              ((r.activeReader = void 0), e.releaseLock());
             }
-          } else r(a);
+          } else i(o);
         }
       };
-      return i;
+      return a;
     }
-    function r(e) {
+    function i(e) {
       let t = new TextEncoder(),
-        r = { cancelled: !1, activeReader: void 0 };
+        i = { cancelled: !1, activeReader: void 0 },
+        a = (t) => {
+          ((i.cancelled = !0), (i.reason = t));
+          let r = i.activeReader;
+          i.activeReader = void 0;
+          for (let r of e) n(r, t);
+          return r?.cancel(t);
+        };
       return new ReadableStream({
-        async pull(i) {
-          let a = n(r, (e) => {
-            r.cancelled || i.enqueue(ArrayBuffer.isView(e) ? e : t.encode(String(e)));
+        async pull(n) {
+          let o = r(i, (e) => {
+            i.cancelled || n.enqueue(ArrayBuffer.isView(e) ? e : t.encode(String(e)));
           });
-          for (let t of e) {
-            if (r.cancelled) return;
-            await a(t);
+          try {
+            for (let t of e) {
+              if (i.cancelled) return;
+              await o(t);
+            }
+          } catch (e) {
+            throw (a(e), e);
           }
-          r.cancelled || i.close();
+          i.cancelled || n.close();
         },
-        cancel(e) {
-          r.cancelled = !0;
-          let t = r.activeReader;
-          return ((r.activeReader = void 0), t?.cancel(e));
-        },
+        cancel: a,
       });
     }
-    return r;
+    return i;
   })();
   __sink__ = void 0;
   return concatStreams(__chunks__);
