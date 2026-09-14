@@ -791,47 +791,21 @@ export default function concatStreams(
       };
 
       /*
-       * The race, in logarithmic time per entry however many are racing (`Promise.race()` over
-       * all of them for every patch is quadratic): `race()` adds a promise, which once settled
-       * either wakes the waiting loop or waits in `ready`, a min-heap by the order the promises
-       * were added. So the loop picks exactly what `Promise.race()` would: the first-added of the
-       * entries that had settled when it asks (see `await undefined` below), or else the first to
-       * settle after that, and it resumes on the same microtask tick.
+       * The race, in constant time per entry however many are racing (`Promise.race()` over all
+       * of them for every patch is quadratic): `race()` adds a promise, which once settled joins
+       * `ready` (and wakes the loop if it is waiting), a queue read from `head` (`shift()` is
+       * linear on large arrays), so the loop takes entries in the order they settled.
        */
-      let raced = 0;
       let racing = 0;
-      const ready: { at: number; settled: Settled }[] = [];
-      let wake: ((settled: Settled) => void) | undefined;
+      const ready: Settled[] = [];
+      let head = 0;
+      let wake: (() => void) | undefined;
       const race = (promise: Promise<Settled>) => {
-        const at = raced++;
         racing++;
         promise.then((settled) => {
-          if (wake) {
-            const resolve = wake;
-            wake = undefined;
-            resolve(settled);
-            return;
-          }
-          let i = ready.length;
-          while (i > 0 && ready[(i - 1) >> 1]!.at > at) {
-            ready[i] = ready[(i - 1) >> 1]!;
-            i = (i - 1) >> 1;
-          }
-          ready[i] = { at, settled };
+          ready.push(settled);
+          wake?.();
         });
-      };
-      const next = (): Settled | Promise<Settled> => {
-        if (ready.length === 0) return new Promise((resolve) => (wake = resolve));
-        const { settled } = ready[0]!;
-        const last = ready.pop()!;
-        let i = 0;
-        for (let down = 1; down < ready.length; i = down, down = 2 * i + 1) {
-          if (down + 1 < ready.length && ready[down + 1]!.at < ready[down]!.at) down++;
-          if (last.at < ready[down]!.at) break;
-          ready[i] = ready[down]!;
-        }
-        if (i < ready.length) ready[i] = last;
-        return settled;
       };
 
       /** Entries waiting for their marker: name → index in `deferred`, in `defer()` order. */
@@ -839,16 +813,13 @@ export default function concatStreams(
       let oldest = 0;
       const parked = new Map<string, number>();
       const track = () => {
-        const marked: number[] = [];
         for (const name of found.splice(0)) {
           const at = parked.get(name);
           if (at !== undefined) {
             parked.delete(name);
-            marked.push(at);
+            race(deferred[at]!.settled!);
           }
         }
-        // Race them in `defer()` order, as the promises that settled together are picked in it.
-        for (const at of marked.sort((a, b) => a - b)) race(deferred[at]!.settled!);
         for (; index < deferred.length; index++) {
           const entry = deferred[index]!;
           if (seen.has(entry.name)) race(entry.settled!);
@@ -865,9 +836,9 @@ export default function concatStreams(
       track();
       while (racing > 0) {
         if (state.cancelled) return;
-        // Let the callbacks of the promises that have settled by now run first.
-        await undefined;
-        let settled = await next();
+        if (head === ready.length) await new Promise<void>((resolve) => (wake = resolve));
+        let settled = ready[head++]!;
+        if (head === ready.length) ready.length = head = 0;
         racing--;
         if (state.cancelled) return;
         if (!settled.failed && settled.reader === undefined) {

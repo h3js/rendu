@@ -419,66 +419,41 @@ async function anonymous(__context__) {
               }
             },
             T = 0,
-            E = 0,
-            D = [],
+            E = [],
+            D = 0,
             O,
             k = (e) => {
-              let t = T++;
-              (E++,
+              (T++,
                 e.then((e) => {
-                  if (O) {
-                    let t = O;
-                    ((O = void 0), t(e));
-                    return;
-                  }
-                  let n = D.length;
-                  for (; n > 0 && D[(n - 1) >> 1].at > t;)
-                    ((D[n] = D[(n - 1) >> 1]), (n = (n - 1) >> 1));
-                  D[n] = { at: t, settled: e };
+                  (E.push(e), O?.());
                 }));
             },
-            A = () => {
-              if (D.length === 0) return new Promise((e) => (O = e));
-              let { settled: e } = D[0],
-                t = D.pop(),
-                n = 0;
-              for (
-                let e = 1;
-                e < D.length &&
-                (e + 1 < D.length && D[e + 1].at < D[e].at && e++, !(t.at < D[e].at));
-                n = e, e = 2 * n + 1
-              )
-                D[n] = D[e];
-              return (n < D.length && (D[n] = t), e);
-            },
+            A = 0,
             j = 0,
-            M = 0,
-            N = new Map(),
-            P = () => {
-              let e = [];
-              for (let t of h.splice(0)) {
-                let n = N.get(t);
-                n !== void 0 && (N.delete(t), e.push(n));
+            M = new Map(),
+            N = () => {
+              for (let e of h.splice(0)) {
+                let n = M.get(e);
+                n !== void 0 && (M.delete(e), k(t[n].settled));
               }
-              for (let n of e.sort((e, t) => e - t)) k(t[n].settled);
-              for (; j < t.length; j++) {
-                let e = t[j];
-                m.has(e.name) ? k(e.settled) : N.set(e.name, j);
+              for (; A < t.length; A++) {
+                let e = t[A];
+                m.has(e.name) ? k(e.settled) : M.set(e.name, A);
               }
-              if (E === 0 && N.size > 0) {
-                for (; !N.has(t[M].name);) M++;
-                (N.delete(t[M].name), k(t[M].settled));
+              if (T === 0 && M.size > 0) {
+                for (; !M.has(t[j].name);) j++;
+                (M.delete(t[j].name), k(t[j].settled));
               }
             };
-          for (P(); E > 0;) {
+          for (N(); T > 0;) {
             if (f.cancelled) return;
-            await void 0;
-            let e = await A();
-            if ((E--, f.cancelled)) return;
+            D === E.length && (await new Promise((e) => (O = e)));
+            let e = E[D++];
+            if ((D === E.length && (E.length = D = 0), T--, f.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
               let { entry: t, value: n } = e,
                 r = n instanceof Response ? n.body : n;
-              if (r instanceof ReadableStream && E > 0)
+              if (r instanceof ReadableStream && T > 0)
                 try {
                   let e = r.getReader();
                   (l.add(e),
@@ -494,7 +469,7 @@ async function anonymous(__context__) {
                 }
             }
             if (e.failed) {
-              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), P());
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), N());
               continue;
             }
             _ = e.entry.name;
@@ -507,7 +482,7 @@ async function anonymous(__context__) {
             let n = c.decode();
             (n && (v || !t) && S(n), !v && !t && x());
             let r = v ? p.end() + `</template>` : ``;
-            ((_ = void 0), (v = !1), r && (b(r), b(`<script>__renduPatch()<\/script>`)), P());
+            ((_ = void 0), (v = !1), r && (b(r), b(`<script>__renduPatch()<\/script>`)), N());
           }
           f.cancelled || i.close();
         },
