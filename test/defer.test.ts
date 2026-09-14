@@ -789,6 +789,25 @@ describe("nested defer", () => {
     );
     expectNestedAfter(html, "d0", "d1");
   });
+
+  it("flushes thousands of racing, nested and unseen entries in linear time", async () => {
+    const fn = compileTemplate(
+      `<? for (let i = 0; i < 4000; i++) { echo(defer(() => "<i>" + defer(Promise.resolve(i)) + "</i>")); defer(i) } ?>`,
+      { stream: true, polyfill: false },
+    );
+    const start = performance.now();
+    const html = norm(await new Response((await fn({})) as ReadableStream).text());
+    // This took around 8 seconds when every patch re-raced and re-checked all waiting entries.
+    expect(performance.now() - start).toBeLessThan(4000);
+    const order = new Map(
+      [...html.matchAll(/<template for="d(\d+)">/g)].map((match, at) => [Number(match[1]), at]),
+    );
+    expect(order.size).toBe(12_000);
+    for (let i = 0; i < 4000; i++) {
+      expect(order.get(3 * i)!).toBeLessThan(order.get(3 * i + 1)!);
+      expect(order.get(3 * i + 2)!).toBeGreaterThanOrEqual(8000);
+    }
+  }, 30_000);
 });
 
 describe("defer patch framing", () => {

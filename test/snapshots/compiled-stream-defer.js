@@ -295,20 +295,23 @@ async function anonymous(__context__) {
     }
     function s(e) {
       let t = new Set(),
-        n = `name="` + e,
-        r = n.length + 20,
-        i = ``,
-        a = (e) => {
-          for (let r = e.indexOf(n); r >= 0; r = e.indexOf(n, r + n.length)) {
-            let i = r + n.length;
-            for (; e.charCodeAt(i) >= 48 && e.charCodeAt(i) <= 57;) i++;
-            e[i] === `"` && i > r + n.length && t.add(e.slice(r + 6, i));
+        n = [],
+        r = `name="` + e,
+        i = r.length + 20,
+        a = ``,
+        o = (e) => {
+          for (let i = e.indexOf(r); i >= 0; i = e.indexOf(r, i + r.length)) {
+            let a = i + r.length;
+            for (; e.charCodeAt(a) >= 48 && e.charCodeAt(a) <= 57;) a++;
+            let o = e.slice(i + 6, a);
+            e[a] === `"` && a > i + r.length && !t.has(o) && (t.add(o), n.push(o));
           }
         };
       return {
         seen: t,
+        found: n,
         scan: (e) => {
-          (i && a(i + e.slice(0, r)), a(e), (i = (e.length < r ? i + e : e).slice(-r)));
+          (a && o(a + e.slice(0, i)), o(e), (a = (e.length < i ? a + e : e).slice(-i)));
         },
       };
     }
@@ -330,78 +333,119 @@ async function anonymous(__context__) {
       return new ReadableStream({
         async pull(n) {
           let { guard: f, end: p } = o(),
-            { seen: m, scan: h } = s(i),
-            g,
-            _ = !1,
+            { seen: m, found: h, scan: g } = s(i),
+            _,
             v = !1,
-            y = (e) => {
-              u.cancelled || (t.length > 0 && h(e), n.enqueue(a.encode(e)));
+            y = !1,
+            b = (e) => {
+              u.cancelled || (t.length > 0 && g(e), n.enqueue(a.encode(e)));
             },
-            b = () => {
-              ((_ = !0),
-                v ||
-                  ((v = !0),
-                  y(
+            x = () => {
+              ((v = !0),
+                y ||
+                  ((y = !0),
+                  b(
                     "<script>window.__renduPatch=typeof HTMLTemplateElement<`u`&&`htmlFor`in HTMLTemplateElement.prototype?function(){}:function(){let e=document.currentScript,t=e&&e.previousElementSibling;if(!(!t||t.tagName!==`TEMPLATE`||!t.hasAttribute(`for`)))try{let e=t.getAttribute(`for`);if(!e)return;let n=e=>e.target?`?`+e.target+` `+e.data:e.data,r=document.createTreeWalker(document,192),i=null,a=null;for(let t=r.nextNode();t;t=r.nextNode()){let r=/^\\?(marker|start)\\s+name=[\"']?([^\"'\\s?>]+)/.exec(n(t));if(r&&r[2]===e){i=t,r[1]===`marker`&&(a=t);break}}if(!i)return;if(a!==i)for(let e=i.nextSibling,t=0;e;e=e.nextSibling){if(e.nodeType!==7&&e.nodeType!==8)continue;let r=n(e);if(/^\\?start\\b/.test(r))t++;else if(/^\\?end\\b/.test(r)){if(t===0){a=e;break}t--}}let o=i.parentNode;if(!o)return;if(a!==i)for(let e=i.nextSibling,t;e&&e!==a;e=t)t=e.nextSibling,o.removeChild(e);o.insertBefore(t.content,a),a&&a!==i&&o.removeChild(a),o.removeChild(i)}finally{t.remove()}};<\/script>",
                   )),
-                y(`<template for="` + g + `">`));
+                b(`<template for="` + _ + `">`));
             },
-            x = (e) => {
+            S = (e) => {
               if (u.cancelled) return;
-              if (g === void 0) {
-                ArrayBuffer.isView(e) ? n.enqueue(e) : y(String(e));
+              if (_ === void 0) {
+                ArrayBuffer.isView(e) ? n.enqueue(e) : b(String(e));
                 return;
               }
               let t = ArrayBuffer.isView(e) ? c.decode(e, { stream: !0 }) : c.decode() + String(e);
               if (!t) return;
-              (_ || b(), h(t));
+              (v || x(), g(t));
               let r = f(t);
               r && n.enqueue(a.encode(r));
             },
-            S = r(u, x);
+            C = r(u, S);
           try {
             for (let t of e) {
               if (u.cancelled) return;
-              await S(t);
+              await C(t);
             }
           } catch (e) {
             throw (d(e), e);
           }
-          let C = async (e, t) => {
+          let w = async (e, t) => {
               u.activeReader = e;
               try {
                 for (let n = t; !n.done; n = await e.read()) {
                   if (u.cancelled) return;
-                  x(n.value);
+                  S(n.value);
                 }
               } finally {
                 ((u.activeReader = void 0), l.delete(e), e.releaseLock());
               }
             },
-            w = 0,
-            T = new Map(),
-            E = new Set(),
-            D = () => {
-              for (; w < t.length;) E.add(t[w++]);
-              for (let e of E) m.has(e.name) && (E.delete(e), T.set(e, e.settled));
-              if (T.size === 0 && E.size > 0) {
-                let e = E.values().next().value;
-                (E.delete(e), T.set(e, e.settled));
+            T = 0,
+            E = 0,
+            D = [],
+            O,
+            k = (e) => {
+              let t = T++;
+              (E++,
+                e.then((e) => {
+                  if (O) {
+                    let t = O;
+                    ((O = void 0), t(e));
+                    return;
+                  }
+                  let n = D.length;
+                  for (; n > 0 && D[(n - 1) >> 1].at > t;)
+                    ((D[n] = D[(n - 1) >> 1]), (n = (n - 1) >> 1));
+                  D[n] = { at: t, settled: e };
+                }));
+            },
+            A = () => {
+              if (D.length === 0) return new Promise((e) => (O = e));
+              let { settled: e } = D[0],
+                t = D.pop(),
+                n = 0;
+              for (
+                let e = 1;
+                e < D.length &&
+                (e + 1 < D.length && D[e + 1].at < D[e].at && e++, !(t.at < D[e].at));
+                n = e, e = 2 * n + 1
+              )
+                D[n] = D[e];
+              return (n < D.length && (D[n] = t), e);
+            },
+            j = 0,
+            M = 0,
+            N = new Map(),
+            P = () => {
+              let e = [];
+              for (let t of h.splice(0)) {
+                let n = N.get(t);
+                n !== void 0 && (N.delete(t), e.push(n));
+              }
+              for (let n of e.sort((e, t) => e - t)) k(t[n].settled);
+              for (; j < t.length; j++) {
+                let e = t[j];
+                m.has(e.name) ? k(e.settled) : N.set(e.name, j);
+              }
+              if (E === 0 && N.size > 0) {
+                for (; !N.has(t[M].name);) M++;
+                (N.delete(t[M].name), k(t[M].settled));
               }
             };
-          for (D(); T.size > 0;) {
+          for (P(); E > 0;) {
             if (u.cancelled) return;
-            let e = await Promise.race(T.values());
-            if ((T.delete(e.entry), u.cancelled)) return;
+            await void 0;
+            let e = await A();
+            if ((E--, u.cancelled)) return;
             if (!e.failed && e.reader === void 0) {
               let { entry: t, value: n } = e,
                 r = n instanceof Response ? n.body : n;
-              if (r instanceof ReadableStream && T.size > 0)
+              if (r instanceof ReadableStream && E > 0)
                 try {
                   let e = r.getReader();
                   (l.add(e),
-                    T.set(
-                      t,
+                    k(
                       e.read().then(
                         (n) => ({ entry: t, reader: e, first: n }),
                         (n) => (l.delete(e), e.releaseLock(), { entry: t, error: n, failed: !0 }),
@@ -413,20 +457,20 @@ async function anonymous(__context__) {
                 }
             }
             if (e.failed) {
-              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), D());
+              (console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, e.error), P());
               continue;
             }
-            g = e.entry.name;
+            _ = e.entry.name;
             let t = !1;
             try {
-              await (e.reader ? C(e.reader, e.first) : S(e.value));
+              await (e.reader ? w(e.reader, e.first) : C(e.value));
             } catch (n) {
               ((t = !0), console.error(`[rendu] deferred value ` + e.entry.name + ` failed:`, n));
             }
             let n = c.decode();
-            (n && x(n), !_ && !t && b());
-            let r = _ ? p() + `</template>` : ``;
-            ((g = void 0), (_ = !1), r && (y(r), y(`<script>__renduPatch()<\/script>`)), D());
+            (n && S(n), !v && !t && x());
+            let r = v ? p() + `</template>` : ``;
+            ((_ = void 0), (v = !1), r && (b(r), b(`<script>__renduPatch()<\/script>`)), P());
           }
           u.cancelled || n.close();
         },

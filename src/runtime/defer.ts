@@ -487,9 +487,10 @@ function createPatchGuard(): PatchGuard {
 
 /**
  * Record which `defer()` markers have been emitted: `seen` (the names of this render's
- * `<?marker name>` / `<?start name>` markers found in the output so far) and `scan(text)`, which
- * `enqueue()` calls on every chunk of text it writes, in the main document and in patches alike,
- * while any `defer()` has been called.
+ * `<?marker name>` / `<?start name>` markers found in the output so far), `found` (the names added
+ * to `seen` since the flush loop last took them, so it never re-checks every waiting entry) and
+ * `scan(text)`, which `enqueue()` calls on every chunk of text it writes, in the main document and
+ * in patches alike, while any `defer()` has been called.
  *
  * - A patch only applies to a marker that is already in the document, so the flush loop holds
  *   an entry back until its marker has been seen: a marker nested in another deferred value
@@ -513,11 +514,13 @@ function createPatchGuard(): PatchGuard {
 
 interface MarkerScan {
   seen: Set<string>;
+  found: string[];
   scan(text: string): void;
 }
 
 function createMarkerScan(deferId: string): MarkerScan {
   const seen = new Set<string>();
+  const found: string[] = [];
   const needle = 'name="' + deferId;
   const reach = needle.length + 20;
   let seenTail = "";
@@ -525,7 +528,11 @@ function createMarkerScan(deferId: string): MarkerScan {
     for (let i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length)) {
       let j = i + needle.length;
       while (text.charCodeAt(j) >= 48 && text.charCodeAt(j) <= 57) j++;
-      if (text[j] === '"' && j > i + needle.length) seen.add(text.slice(i + 6, j));
+      const name = text.slice(i + 6, j);
+      if (text[j] === '"' && j > i + needle.length && !seen.has(name)) {
+        seen.add(name);
+        found.push(name);
+      }
     }
   };
   const scan = (text: string) => {
@@ -533,7 +540,7 @@ function createMarkerScan(deferId: string): MarkerScan {
     find(text);
     seenTail = (text.length < reach ? seenTail + text : text).slice(-reach);
   };
-  return { seen, scan };
+  return { seen, found, scan };
 }
 
 // ---- Runtime
@@ -586,7 +593,7 @@ export default function concatStreams(
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       const { guard, end: patchEnd } = createPatchGuard();
-      const { seen, scan } = createMarkerScan(deferId);
+      const { seen, found, scan } = createMarkerScan(deferId);
 
       /** The entry being flushed, `undefined` outside a patch. */
       let patchName: string | undefined;
@@ -670,11 +677,11 @@ export default function concatStreams(
        *   without racing). A value that fails mid-stream has already been partly written into
        *   its open patch: that part stays, and `patchEnd()` closes whatever it left open so later
        *   patches are unaffected.
-       * - An entry races only once its marker has been `seen` (`pending`); until then it waits
-       *   in `parked`. That is what makes nested `defer()` work: a marker inside another deferred
-       *   value (a string, stream, Response or function result, at any depth) reaches the
-       *   document with that value's patch, so the inner patch has to go out after it, whichever
-       *   settles first. `track()` re-checks the parked entries after every patch, which is the
+       * - An entry races only once its marker has been `seen`; until then it waits in `parked`.
+       *   That is what makes nested `defer()` work: a marker inside another deferred value (a
+       *   string, stream, Response or function result, at any depth) reaches the document with
+       *   that value's patch, so the inner patch has to go out after it, whichever settles first.
+       *   `track()` takes the markers `found` since its last call after every patch, which is the
        *   only time `seen` can grow once the main chunks are written.
        * - When no entry is left racing, nothing can emit a marker any more (markers are only
        *   written by patches now, and every patch is followed by `track()`), so the oldest parked
@@ -706,41 +713,94 @@ export default function concatStreams(
         }
       };
 
-      let index = 0;
-      const pending = new Map<DeferEntry, Promise<Settled>>();
-      const parked = new Set<DeferEntry>();
-      const track = () => {
-        while (index < deferred.length) {
-          parked.add(deferred[index++]!);
+      /*
+       * The race, in logarithmic time per entry however many are racing (`Promise.race()` over
+       * all of them for every patch is quadratic): `race()` adds a promise, which once settled
+       * either wakes the waiting loop or waits in `ready`, a min-heap by the order the promises
+       * were added. So the loop picks exactly what `Promise.race()` would: the first-added of the
+       * entries that had settled when it asks (see `await undefined` below), or else the first to
+       * settle after that, and it resumes on the same microtask tick.
+       */
+      let raced = 0;
+      let racing = 0;
+      const ready: { at: number; settled: Settled }[] = [];
+      let wake: ((settled: Settled) => void) | undefined;
+      const race = (promise: Promise<Settled>) => {
+        const at = raced++;
+        racing++;
+        promise.then((settled) => {
+          if (wake) {
+            const resolve = wake;
+            wake = undefined;
+            resolve(settled);
+            return;
+          }
+          let i = ready.length;
+          while (i > 0 && ready[(i - 1) >> 1]!.at > at) {
+            ready[i] = ready[(i - 1) >> 1]!;
+            i = (i - 1) >> 1;
+          }
+          ready[i] = { at, settled };
+        });
+      };
+      const next = (): Settled | Promise<Settled> => {
+        if (ready.length === 0) return new Promise((resolve) => (wake = resolve));
+        const { settled } = ready[0]!;
+        const last = ready.pop()!;
+        let i = 0;
+        for (let down = 1; down < ready.length; i = down, down = 2 * i + 1) {
+          if (down + 1 < ready.length && ready[down + 1]!.at < ready[down]!.at) down++;
+          if (last.at < ready[down]!.at) break;
+          ready[i] = ready[down]!;
         }
-        for (const entry of parked) {
-          if (seen.has(entry.name)) {
-            parked.delete(entry);
-            pending.set(entry, entry.settled!);
+        if (i < ready.length) ready[i] = last;
+        return settled;
+      };
+
+      /** Entries waiting for their marker: name → index in `deferred`, in `defer()` order. */
+      let index = 0;
+      let oldest = 0;
+      const parked = new Map<string, number>();
+      const track = () => {
+        const marked: number[] = [];
+        for (const name of found.splice(0)) {
+          const at = parked.get(name);
+          if (at !== undefined) {
+            parked.delete(name);
+            marked.push(at);
           }
         }
-        if (pending.size === 0 && parked.size > 0) {
-          const entry = parked.values().next().value!;
-          parked.delete(entry);
-          pending.set(entry, entry.settled!);
+        // Race them in `defer()` order, as the promises that settled together are picked in it.
+        for (const at of marked.sort((a, b) => a - b)) race(deferred[at]!.settled!);
+        for (; index < deferred.length; index++) {
+          const entry = deferred[index]!;
+          if (seen.has(entry.name)) race(entry.settled!);
+          else parked.set(entry.name, index);
+        }
+        if (racing === 0 && parked.size > 0) {
+          // The oldest parked entry (entries older than `oldest` are never parked again).
+          while (!parked.has(deferred[oldest]!.name)) oldest++;
+          parked.delete(deferred[oldest]!.name);
+          race(deferred[oldest]!.settled!);
         }
       };
 
       track();
-      while (pending.size > 0) {
+      while (racing > 0) {
         if (state.cancelled) return;
-        let settled = await Promise.race(pending.values());
-        pending.delete(settled.entry);
+        // Let the callbacks of the promises that have settled by now run first.
+        await undefined;
+        let settled = await next();
+        racing--;
         if (state.cancelled) return;
         if (!settled.failed && settled.reader === undefined) {
           const { entry, value } = settled;
           const body = value instanceof Response ? value.body : value;
-          if (body instanceof ReadableStream && pending.size > 0) {
+          if (body instanceof ReadableStream && racing > 0) {
             try {
               const reader: ReadableStreamDefaultReader<unknown> = body.getReader();
               openReaders.add(reader);
-              pending.set(
-                entry,
+              race(
                 reader.read().then(
                   (first): Settled => ({ entry, reader, first }),
                   (error): Settled => {
